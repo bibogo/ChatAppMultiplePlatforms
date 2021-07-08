@@ -81,7 +81,9 @@ class _RoomState extends State<Room> {
             stream: FirebaseService.getMessageNoReceive(widget.documentReference),
             builder: (sContext, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return Text("Loading");
+                return Center(
+                  child: CircularProgressIndicator(),
+                );
               }
 
               if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {

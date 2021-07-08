@@ -33,7 +33,9 @@ class _ChatListState extends State<ChatList> {
         stream: FirebaseService.getUsers(appStore!.userCredential?.user?.uid),
         builder: (sContext, AsyncSnapshot<QuerySnapshot> snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return Text("Loading");
+            return Center(
+              child: CircularProgressIndicator(),
+            );
           }
 
           return ListView.separated(
