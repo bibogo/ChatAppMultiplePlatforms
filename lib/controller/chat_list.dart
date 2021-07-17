@@ -1,4 +1,6 @@
+import 'package:chat_app_multiple_platforms/domain/profile.dart';
 import 'package:chat_app_multiple_platforms/service/firebase.dart';
+import 'package:chat_app_multiple_platforms/view/information/information.dart';
 import 'package:chat_app_multiple_platforms/view/room/room.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/cupertino.dart';
@@ -6,9 +8,39 @@ import 'package:flutter/material.dart';
 
 class ChatListController {
 
-  void createChatRoom(BuildContext context, currentUser, userLinked, usernameLinked) async {
-    DocumentReference room = await FirebaseService.createChatRoom(currentUser, userLinked);
+  void createChatRoom(BuildContext context, Profile? currProfile, List<Profile> profiles) async {
+    List<DocumentReference> refs = [currProfile!.userDoc!.reference];
+    
+    profiles.forEach((_profile) {
+      refs.add(_profile.userDoc!.reference);
+    });
+    
+    DocumentReference room = await FirebaseService.createChatRoom(refs);
+  }
 
-    Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => Room(documentReference: room, name: usernameLinked,)));
+  void navigateToInfo(BuildContext context) async {
+    await Navigator.push(context, MaterialPageRoute(builder: (context) => Information()));
+  }
+  
+  Future<List<Profile>> getProfileFromRef(List uuids) async {
+    List<Profile> profiles = [];
+
+    await _buildProfile(profiles, 0, uuids);
+    
+    return Future.value(profiles);
+  }
+  
+  _buildProfile(List<Profile> profiles, int index, List uuids) async {
+    if (index <= uuids.length - 1) {
+      DocumentReference<Map<String, dynamic>> docRef = uuids.elementAt(index) as DocumentReference<Map<String, dynamic>>;
+      profiles.add(Profile.fromDoc(await docRef.get()));
+      index++;
+
+      await _buildProfile(profiles, index, uuids);
+    }
+  }
+  
+  void navigateToChatRoom(BuildContext context, DocumentReference room) {
+    Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => Room(documentReference: room)));
   }
 }

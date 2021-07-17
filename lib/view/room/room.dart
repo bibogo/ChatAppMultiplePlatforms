@@ -102,11 +102,16 @@ class _RoomState extends State<Room> {
                 children: [
                   Container(
                     padding: const EdgeInsets.only(bottom: 20.0),
-                    child: ListView.builder(
+                    child: ListView.separated(
                       shrinkWrap: true,
                       reverse: true,
                       padding: EdgeInsets.only(top: 15.0),
-                      itemCount: _roomController?.messages.length,
+                      itemCount: _roomController?.messages.length ?? 0,
+                      separatorBuilder: (BuildContext context, int index) {
+                        return Container(
+                          height: 10.0,
+                        );
+                      },
                       itemBuilder: (BuildContext context, int index) {
                         return MessageBuilder(messageMap: _roomController?.messages.elementAt(index));
                       },
@@ -135,11 +140,11 @@ class _RoomState extends State<Room> {
             onPressed: () {},
           ),
           Expanded(
-            child: TextField( 
+            child: TextField(
               textCapitalization: TextCapitalization.sentences,
               controller: _message,
               onChanged: (value) async {
-                await _roomController!.sendingMessage(widget.documentReference, appStore!.userCredential!.user!.uid, value);
+                await _roomController!.sendingMessage(widget.documentReference, appStore!.profile!.uuid, value);
               },
               decoration: InputDecoration.collapsed(
                 hintText: 'Send a message...',
@@ -152,7 +157,7 @@ class _RoomState extends State<Room> {
             color: Theme.of(context).primaryColor,
             onPressed: () async {
               if (_message!.text.isNotEmpty) {
-                _roomController!.sendMessage(widget.documentReference, appStore!.userCredential!.user!.uid, _message!.text);
+                _roomController!.sendMessage(widget.documentReference, appStore!.profile!.uuid, _message!.text);
                 _message!.text = '';
               }
             },
@@ -174,7 +179,7 @@ class _RoomState extends State<Room> {
 
             if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
               snapshot.data!.docs.every((item) {
-                if (item.get('isTyping') && item.get('uuid') != appStore!.userCredential!.user!.uid && !isTyping) {
+                if (item.get('isTyping') && item.get('uuid') != appStore!.profile!.uuid && !isTyping) {
                   isTyping = true;
                   return false;
                 }
@@ -214,7 +219,7 @@ class _MessageBuilderState extends State<MessageBuilder> {
   @override
   Widget build(BuildContext context) {
     message = widget.messageMap?['message'] as Message;
-    isMe = message!.uuId == appStore!.userCredential!.user!.uid;
+    isMe = message!.uuId == appStore!.profile!.uuid;
 
     if (!message!.isReceived) {
       (widget.messageMap?['query'] as QueryDocumentSnapshot<Message>).reference.update({
@@ -225,7 +230,9 @@ class _MessageBuilderState extends State<MessageBuilder> {
     return Row(
       mainAxisSize: MainAxisSize.max,
       mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        _buildIconNotOwn(),
         Expanded(
           child: Column(
             crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
@@ -233,12 +240,13 @@ class _MessageBuilderState extends State<MessageBuilder> {
             children: [
               _buildMessage(),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 15.0),
+                padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 5.0),
                 child: Text(
                   DateFormat('kk:mm').format(message!.dateCreated),
                   textAlign: TextAlign.right,
+                  style: TextStyle(fontSize: 12.0),
                 ),
-              )
+              ),
             ],
           ),
         )
@@ -246,42 +254,71 @@ class _MessageBuilderState extends State<MessageBuilder> {
     );
   }
 
+  _buildIconNotOwn() {
+    if (isMe) {
+      return Container();
+    }
+
+    return Icon(
+      Icons.account_circle_sharp,
+      size: 36.0,
+    );
+  }
+
   _buildMessage() {
-    final Container msg = Container(
-      margin: EdgeInsets.only(
-        top: 8.0,
-        bottom: 8.0,
-      ),
-      padding: EdgeInsets.symmetric(horizontal: 15.0, vertical: 15.0),
-      decoration: BoxDecoration(
-        color: isMe ? Theme.of(context).accentColor : Colors.green,
-        borderRadius: isMe
-            ? BorderRadius.only(
-                topLeft: Radius.circular(10.0),
-                bottomLeft: Radius.circular(10.0),
-              )
-            : BorderRadius.only(
-                topRight: Radius.circular(10.0),
-                bottomRight: Radius.circular(10.0),
-              ),
-      ),
+    final Widget msg = Container(
       constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            message!.text,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16.0,
-              fontWeight: FontWeight.w600,
-            ),
-            softWrap: true,
-          ),
-        ],
+      padding: const EdgeInsets.symmetric(horizontal: 5.0),
+      child: CustomPaint(
+        painter: Bubble(isOwn: isMe),
+        child: Container(
+          padding: EdgeInsets.all(8),
+          child: Text(message!.text),
+        ),
       ),
     );
 
     return msg;
+  }
+}
+
+class Bubble extends CustomPainter {
+  Bubble({@required this.isOwn = true});
+
+  final bool isOwn;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = (isOwn ? Color.fromRGBO(209, 215, 219, 1.0) : Colors.white);
+
+    Path? paintBubbleTail() {
+      Path? path;
+      if (!isOwn) {
+        path = Path()..lineTo(-10, 0)..lineTo(0, 5);
+      }
+      if (isOwn) {
+        path = Path()..lineTo(size.width + 5, 0)..lineTo(size.width, 5);
+      }
+      return path;
+    }
+
+    if (isOwn) {
+      final RRect bubbleBody = RRect.fromRectAndCorners(Rect.fromLTWH(0, 0, size.width, size.height), topLeft: Radius.circular(6.0), bottomRight: Radius.circular(6.0), bottomLeft: Radius.circular(6.0));
+
+      canvas.drawRRect(bubbleBody, paint);
+    } else {
+      final RRect bubbleBody = RRect.fromRectAndCorners(Rect.fromLTWH(0, 0, size.width, size.height), topRight: Radius.circular(6.0), bottomRight: Radius.circular(6.0), bottomLeft: Radius.circular(6.0));
+
+      canvas.drawRRect(bubbleBody, paint);
+    }
+
+    final Path? bubbleTail = paintBubbleTail();
+
+    canvas.drawPath(bubbleTail!, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    return true;
   }
 }
