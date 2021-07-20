@@ -40,7 +40,18 @@ class ChatListController {
     }
   }
   
-  void navigateToChatRoom(BuildContext context, DocumentReference room) {
-    Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => Room(documentReference: room)));
+  void navigateToChatRoom(BuildContext context, DocumentSnapshot docSnapshot) async {
+    List uuids = docSnapshot.get('uuids') as List;
+    List<Profile> profiles = [];
+    List<String> names = [];
+    
+    for(DocumentReference uuid in uuids) {
+      Profile _profile = (await uuid.withConverter<Profile>(fromFirestore: (snapshot, _) => Profile.fromDoc(snapshot), toFirestore: (model, _) => model.toJSON()).get()).data()!;
+
+      names.add(_profile.displayName);
+      profiles.add(_profile);
+    }
+    
+    Navigator.push(context, MaterialPageRoute(builder: (context) => Room(documentReference: docSnapshot.reference, title: names.join(', '), profiles: profiles,)));
   }
 }

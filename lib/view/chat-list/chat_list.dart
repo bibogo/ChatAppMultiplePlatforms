@@ -126,7 +126,7 @@ class _ChatListState extends State<ChatList> {
                   ),
                 ),
                 onTap: () {
-                  _chatListController!.navigateToChatRoom(context, doc.reference);
+                  _chatListController!.navigateToChatRoom(context, doc);
                 },
               );
             },
@@ -138,7 +138,6 @@ class _ChatListState extends State<ChatList> {
   }
 
   _buildAvatarWidget(List<Profile> profiles) {
-    print(profiles);
     if (profiles.length == 1) {
       return Container(
         width: 80.0,

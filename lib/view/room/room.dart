@@ -1,18 +1,22 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:chat_app_multiple_platforms/controller/room.dart';
 import 'package:chat_app_multiple_platforms/domain/message.dart';
+import 'package:chat_app_multiple_platforms/domain/profile.dart';
 import 'package:chat_app_multiple_platforms/main.dart';
 import 'package:chat_app_multiple_platforms/service/firebase.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:intl/intl.dart';
 
 class Room extends StatefulWidget {
-  const Room({Key? key, this.documentReference, this.name}) : super(key: key);
+  Room({Key? key, this.documentReference, this.title, this.profiles}) : super(key: key);
 
   final DocumentReference? documentReference;
-  final String? name;
+  final String? title;
+  List<Profile>? profiles;
 
   @override
   _RoomState createState() => _RoomState();
@@ -43,7 +47,13 @@ class _RoomState extends State<Room> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('${widget.name ?? ''}'),
+        title: Text('${widget.title ?? ''}'),
+        leading: IconButton(
+          onPressed: () {
+            Navigator.pop(this.context);
+          },
+          icon: Icon(Icons.arrow_back),
+        ),
       ),
       body: GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),
@@ -144,7 +154,7 @@ class _RoomState extends State<Room> {
               textCapitalization: TextCapitalization.sentences,
               controller: _message,
               onChanged: (value) async {
-                await _roomController!.sendingMessage(widget.documentReference, appStore!.profile!.uuid, value);
+                await _roomController!.sendingMessage(widget.documentReference, appStore!.profile!, value);
               },
               decoration: InputDecoration.collapsed(
                 hintText: 'Send a message...',
@@ -157,7 +167,7 @@ class _RoomState extends State<Room> {
             color: Theme.of(context).primaryColor,
             onPressed: () async {
               if (_message!.text.isNotEmpty) {
-                _roomController!.sendMessage(widget.documentReference, appStore!.profile!.uuid, _message!.text);
+                _roomController!.sendMessage(widget.documentReference, appStore!.profile!, _message!.text);
                 _message!.text = '';
               }
             },
@@ -169,28 +179,62 @@ class _RoomState extends State<Room> {
 
   _buildTyping() {
     // message != null &&
-    return Row(
-      mainAxisSize: MainAxisSize.max,
-      children: [
-        StreamBuilder<QuerySnapshot>(
+    return Container(
+      height: 30.0,
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: StreamBuilder<QuerySnapshot>(
           stream: FirebaseService.getTypingMessage(widget.documentReference),
           builder: (sContext, snapshot) {
             bool isTyping = false;
+            List<Widget> widgets = [];
 
             if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
-              snapshot.data!.docs.every((item) {
+              snapshot.data!.docs.forEach((item) {
                 if (item.get('isTyping') && item.get('uuid') != appStore!.profile!.uuid && !isTyping) {
-                  isTyping = true;
-                  return false;
+                  widgets.add(_userTyping(item.get('avatarURL')) ?? '');
                 }
-                return true;
               });
             }
 
-            return Container(
-              child: Text(isTyping ? 'Typing...' : ''),
+            return Row(
+              mainAxisSize: MainAxisSize.max,
+              children: widgets,
             );
           },
+        ),
+      ),
+    );
+  }
+
+  _userTyping(String url) {
+    return Row(
+      children: [
+        Container(
+          width: 26.0,
+          height: 26.0,
+          margin: const EdgeInsets.symmetric(horizontal: 2.0),
+          decoration: BoxDecoration(borderRadius: BorderRadius.all(Radius.circular(13.0))),
+          child: ClipRRect(
+            borderRadius: BorderRadius.all(Radius.circular(13.0)),
+            child: url.isEmpty ? Icon(Icons.account_circle, ) : CachedNetworkImage(
+              imageUrl: url,
+              fit: BoxFit.fill,
+              placeholder: (context, url) => CircularProgressIndicator(),
+              errorWidget: (context, url, error) => Icon(Icons.error),
+            ),
+          ),
+        ),
+        CustomPaint(
+          size: Size(30.0, 26.0),
+          painter: Bubble(isOwn: false),
+          child: Container(
+            padding: EdgeInsets.all(8),
+            child: Center(
+              child: Icon(FontAwesomeIcons.ellipsisH, size: 12.0, color: Colors.grey,),
+            ),
+          ),
         )
       ],
     );
@@ -219,7 +263,7 @@ class _MessageBuilderState extends State<MessageBuilder> {
   @override
   Widget build(BuildContext context) {
     message = widget.messageMap?['message'] as Message;
-    isMe = message!.uuId == appStore!.profile!.uuid;
+    isMe = message!.uuid == appStore!.profile!.uuid;
 
     if (!message!.isReceived) {
       (widget.messageMap?['query'] as QueryDocumentSnapshot<Message>).reference.update({
@@ -238,7 +282,7 @@ class _MessageBuilderState extends State<MessageBuilder> {
             crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.max,
             children: [
-              _buildMessage(),
+              _buildMessage(context),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 5.0),
                 child: Text(
@@ -259,26 +303,97 @@ class _MessageBuilderState extends State<MessageBuilder> {
       return Container();
     }
 
-    return Icon(
-      Icons.account_circle_sharp,
-      size: 36.0,
-    );
-  }
+    if (message!.avatarURL.isEmpty) {
+      return Icon(
+        Icons.account_circle_sharp,
+        size: 40.0,
+      );
+    }
 
-  _buildMessage() {
-    final Widget msg = Container(
-      constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-      padding: const EdgeInsets.symmetric(horizontal: 5.0),
-      child: CustomPaint(
-        painter: Bubble(isOwn: isMe),
-        child: Container(
-          padding: EdgeInsets.all(8),
-          child: Text(message!.text),
+    return Container(
+      height: 36.0,
+      width: 36.0,
+      padding: const EdgeInsets.all(2.0),
+      decoration: BoxDecoration(borderRadius: BorderRadius.all(Radius.circular(20.0))),
+      child: ClipRRect(
+        borderRadius: BorderRadius.all(Radius.circular(20.0)),
+        child: CachedNetworkImage(
+          imageUrl: message!.avatarURL,
+          fit: BoxFit.fill,
+          placeholder: (context, url) => CircularProgressIndicator(),
+          errorWidget: (context, url, error) => Icon(Icons.error),
         ),
       ),
     );
+  }
+
+  _buildMessage(BuildContext context) {
+    Message _message = message!;
+    if (_message.text.isEmpty && (_message.images ?? []).length == 0) {
+      return Container();
+    }
+
+    Widget child = Container();
+
+    if (!_message.text.isEmpty) {
+      child = _buildTextMessage(_message.text);
+    }
+
+    if ((_message.images ?? []).length > 0) {
+      child = _buildImagesMessage();
+    }
+
+    Widget msg = Container(
+      constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+      padding: const EdgeInsets.symmetric(horizontal: 5.0),
+      child: child,
+    );
 
     return msg;
+  }
+
+  _buildTextMessage(String text) {
+    return CustomPaint(
+      painter: Bubble(isOwn: isMe),
+      child: Container(
+        padding: EdgeInsets.all(8),
+        child: Text(text),
+      ),
+    );
+  }
+
+  _buildImagesMessage() {
+    return Row(
+      mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+      children: [
+        Container(
+          height: 120.0,
+          width: 80.0,
+          decoration: BoxDecoration(
+              border: Border.all(width: 1.0, color: Colors.white),
+              borderRadius: BorderRadius.all(Radius.circular(4.0))
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.all(Radius.circular(4.0)),
+            child: Stack(
+              children: [
+                Center(
+                  child: Icon(FontAwesomeIcons.image, color: Colors.grey,),
+                ),
+                Container(color: Colors.black.withOpacity(0.4),),
+                Center(
+                  child: Container(
+                    width: 24.0,
+                    height: 24.0,
+                    child: CircularProgressIndicator(color: Colors.white, ),
+                  ),
+                )
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
