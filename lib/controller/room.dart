@@ -2,6 +2,9 @@ import 'package:chat_app_multiple_platforms/domain/message.dart';
 import 'package:chat_app_multiple_platforms/domain/profile.dart';
 import 'package:chat_app_multiple_platforms/service/firebase.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 
 class RoomController {
   List<Map<String, dynamic>> messages = [];
@@ -69,6 +72,29 @@ class RoomController {
         isTyping = false;
         doc = null;
       }
+    }
+  }
+  
+  uploadPicture(DocumentReference documentReference, PickedFile pickedFile, Profile profile) async {
+    try {
+      String fileName = DateFormat('yyyyMMddHHmmssS').format(DateTime.now());
+      Reference ref = await FirebaseStorage.instance.ref('rooms').child(documentReference.id).child('$fileName.png');
+      await ref.putData(await pickedFile.readAsBytes());
+      String url = await ref.getDownloadURL();
+
+      Message _message = Message()
+        ..text = ''
+        ..dateCreated = new DateTime.now()
+        ..uuid = profile.uuid
+        ..isTyping = false
+        ..isReceived = false
+        ..userDocRef = profile.userDoc!.reference
+        ..avatarURL = profile.avatarURL
+        ..images = [url];
+
+      documentReference.collection('message').add(_message.toJSON());
+    } catch (e) {
+      print(e);
     }
   }
 }

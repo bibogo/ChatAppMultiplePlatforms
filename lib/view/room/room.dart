@@ -9,6 +9,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 class Room extends StatefulWidget {
@@ -28,6 +29,7 @@ class _RoomState extends State<Room> {
   Widget? messageForm;
   Map<String, Widget?> widgets = {'message': null, 'typing': null, 'composer': null};
   bool initScreen = false;
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -147,7 +149,21 @@ class _RoomState extends State<Room> {
             icon: Icon(Icons.photo),
             iconSize: 25.0,
             color: Theme.of(context).primaryColor,
-            onPressed: () {},
+            onPressed: () async {
+              print('Upload Image');
+
+              try {
+                PickedFile? pickedFile = await _picker.getImage(
+                  source: ImageSource.gallery,
+                  imageQuality: 1,
+                );
+
+                _roomController!.uploadPicture(widget.documentReference!, pickedFile!, appStore!.profile!);
+
+              } catch (e) {
+                print(e);
+              }
+            },
           ),
           Expanded(
             child: TextField(
@@ -340,7 +356,7 @@ class _MessageBuilderState extends State<MessageBuilder> {
     }
 
     if ((_message.images ?? []).length > 0) {
-      child = _buildImagesMessage();
+      child = _buildImagesMessage(_message.images!);
     }
 
     Widget msg = Container(
@@ -362,37 +378,57 @@ class _MessageBuilderState extends State<MessageBuilder> {
     );
   }
 
-  _buildImagesMessage() {
+  _buildImagesMessage(List images) {
+    List<Widget> widgets = [];
+    
+    images.forEach((item) {
+      widgets.add(
+          Container(
+            height: 120.0,
+            width: 80.0,
+            decoration: BoxDecoration(
+                border: Border.all(width: 1.0, color: Colors.white),
+                borderRadius: BorderRadius.all(Radius.circular(4.0))
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.all(Radius.circular(4.0)),
+              child: CachedNetworkImage(
+                imageUrl: item,
+                fit: BoxFit.cover,
+                placeholder: (context, url) => Stack(
+                  children: [
+                    Center(
+                      child: Icon(FontAwesomeIcons.image, color: Colors.grey,),
+                    ),
+                    Container(color: Colors.black.withOpacity(0.4),),
+                    Center(
+                      child: Container(
+                        width: 24.0,
+                        height: 24.0,
+                        child: CircularProgressIndicator(color: Colors.white, ),
+                      ),
+                    )
+                  ],
+                ),
+                errorWidget: (context, url, error) => Stack(
+                  children: [
+                    Center(
+                      child: Icon(FontAwesomeIcons.image, color: Colors.grey,),
+                    ),
+                    Container(color: Colors.black.withOpacity(0.4),),
+                    Center(
+                      child: Icon(Icons.error)),
+                  ],
+                ),
+              ),
+            ),
+          )
+      );
+    });
+    
     return Row(
       mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
-      children: [
-        Container(
-          height: 120.0,
-          width: 80.0,
-          decoration: BoxDecoration(
-              border: Border.all(width: 1.0, color: Colors.white),
-              borderRadius: BorderRadius.all(Radius.circular(4.0))
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.all(Radius.circular(4.0)),
-            child: Stack(
-              children: [
-                Center(
-                  child: Icon(FontAwesomeIcons.image, color: Colors.grey,),
-                ),
-                Container(color: Colors.black.withOpacity(0.4),),
-                Center(
-                  child: Container(
-                    width: 24.0,
-                    height: 24.0,
-                    child: CircularProgressIndicator(color: Colors.white, ),
-                  ),
-                )
-              ],
-            ),
-          ),
-        ),
-      ],
+      children: widgets,
     );
   }
 }
