@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
 	<key>CLIENT_ID</key>
-	<string>87521776535-74hrdp1c0iq1akuvqie5ejvs0t4t240s.apps.googleusercontent.com</string>
+	<string>87521776535-2e643bi69j0uo0r7qm3auueosoui1lcu.apps.googleusercontent.com</string>
 	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.87521776535-74hrdp1c0iq1akuvqie5ejvs0t4t240s</string>
+	<string>com.googleusercontent.apps.87521776535-2e643bi69j0uo0r7qm3auueosoui1lcu</string>
 	<key>API_KEY</key>
 	<string>AIzaSyCJ6GPernSyUiBcorOZ9U3RhrJOqXX3yY4</string>
 	<key>GCM_SENDER_ID</key>
@@ -13,7 +13,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.flutter.phuoc.ios</string>
+	<string>net.kmc.flutter.chatapp</string>
 	<key>PROJECT_ID</key>
 	<string>chat-app-2fed4</string>
 	<key>STORAGE_BUCKET</key>
@@ -29,6 +29,8 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:87521776535:ios:aea6a27c16afeb2cf3aad2</string>
+	<string>1:87521776535:ios:4f587e9b716cb855f3aad2</string>
+	<key>DATABASE_URL</key>
+	<string>https://chat-app-2fed4-default-rtdb.firebaseio.com</string>
 </dict>
 </plist>
