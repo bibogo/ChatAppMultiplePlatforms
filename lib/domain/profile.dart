@@ -1,9 +1,4 @@
-import 'dart:typed_data';
-
-import 'package:chat_app_multiple_platforms/service/firebase.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/cupertino.dart';
-import 'package:flutter/services.dart';
 
 class Profile {
   String uuid = '';
@@ -13,6 +8,7 @@ class Profile {
   String description = '';
   String avatarURL = '';
   DocumentSnapshot? userDoc;
+  String? fcmToken;
 
   Profile({this.uuid = '', this.email = '', this.password = '', this.displayName = ''});
 
@@ -22,7 +18,8 @@ class Profile {
         displayName = doc.get('displayName'),
         description = doc.get('description'),
         avatarURL = doc.get('avatarURL'),
-        userDoc = doc;
+        userDoc = doc,
+        fcmToken = doc.get('fcmToken');
 
   Map<String, dynamic> toJSON() => {
         'uuid': uuid,
@@ -30,5 +27,6 @@ class Profile {
         'displayName': displayName,
         'description': description,
         'avatarURL': avatarURL,
+        'fcmToken': fcmToken,
       };
 }

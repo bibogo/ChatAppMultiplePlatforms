@@ -4,6 +4,7 @@ import 'package:chat_app_multiple_platforms/service/firebase.dart';
 import 'package:chat_app_multiple_platforms/view/chat-list/chat_list.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -21,6 +22,7 @@ class LoginController {
         String displayName = '${email}'.split('@')[0];
 
         appStore!.profile = Profile(uuid: uuid, email: email, password: password, displayName: '@$displayName');
+        appStore!.profile?.fcmToken = await FirebaseMessaging.instance.getToken();
 
         user.reference.set(appStore!.profile!);
         appStore!.profile!.userDoc = user;

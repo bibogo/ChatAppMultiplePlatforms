@@ -272,12 +272,16 @@ class _ChatListState extends State<ChatList> {
       decoration: BoxDecoration(borderRadius: BorderRadius.all(Radius.circular(20.0))),
       child: ClipRRect(
         borderRadius: BorderRadius.all(Radius.circular(20.0)),
-        child: CachedNetworkImage(
+        child: '$url'.isNotEmpty ? CachedNetworkImage(
           imageUrl: url,
           fit: BoxFit.fill,
           placeholder: (context, url) => CircularProgressIndicator(),
-          errorWidget: (context, url, error) => Icon(Icons.error),
-        ),
+          errorWidget: (context, url, error) => Icon(Icons.account_circle_sharp,
+            size: 32,
+            color: Color.fromRGBO(209, 215, 219, 1.0),),
+        ) : Icon(Icons.account_circle_sharp,
+          size: 32,
+          color: Color.fromRGBO(209, 215, 219, 1.0),),
       ),
     );
   }

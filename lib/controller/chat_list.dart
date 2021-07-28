@@ -25,19 +25,9 @@ class ChatListController {
   Future<List<Profile>> getProfileFromRef(List uuids) async {
     List<Profile> profiles = [];
 
-    await _buildProfile(profiles, 0, uuids);
+    await FirebaseService.buildProfile(profiles, 0, uuids);
     
     return Future.value(profiles);
-  }
-  
-  _buildProfile(List<Profile> profiles, int index, List uuids) async {
-    if (index <= uuids.length - 1) {
-      DocumentReference<Map<String, dynamic>> docRef = uuids.elementAt(index) as DocumentReference<Map<String, dynamic>>;
-      profiles.add(Profile.fromDoc(await docRef.get()));
-      index++;
-
-      await _buildProfile(profiles, index, uuids);
-    }
   }
   
   void navigateToChatRoom(BuildContext context, DocumentSnapshot docSnapshot) async {

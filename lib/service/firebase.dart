@@ -1,6 +1,5 @@
 import 'package:chat_app_multiple_platforms/domain/message.dart';
 import 'package:chat_app_multiple_platforms/domain/profile.dart';
-import 'package:chat_app_multiple_platforms/main.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -64,10 +63,18 @@ class FirebaseService {
 
     return FirebaseFirestore.instance.doc('${documentReference.path}').collection('message').where('isReceived', isEqualTo: false).withConverter<Message>(fromFirestore: (snapshot, _) => Message.convertFromDoc(snapshot), toFirestore: (model, _) => model.toJSON()).snapshots(includeMetadataChanges: true);
   }
+  
+  static Future<void> buildProfile(List<Profile> profiles, int index, List uuids) async {
+    if (index <= uuids.length - 1) {
+      DocumentReference<Map<String, dynamic>> docRef = uuids.elementAt(index) as DocumentReference<Map<String, dynamic>>;
+      profiles.add(Profile.fromDoc(await docRef.get()));
+      index++;
+
+      await FirebaseService.buildProfile(profiles, index, uuids);
+    }
+  }
 }
 
 class StorageService {
   static Future<String> getAvatarURLByUUID(uuid) => FirebaseStorage.instance.ref().child('users').child(uuid).child('avatar.png').getDownloadURL();
-  
-  
 }

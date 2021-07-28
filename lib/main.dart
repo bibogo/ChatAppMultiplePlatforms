@@ -34,18 +34,22 @@ void main() async {
     );
 
     flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
-
-    /// Create an Android Notification Channel.
-    ///
-    /// We use this channel in the `AndroidManifest.xml` file to override the
-    /// default FCM channel to enable heads up notifications.
+    
     await flutterLocalNotificationsPlugin!
         .resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(channel!);
-
-    /// Update the iOS foreground notification presentation options to allow
-    /// heads up notifications.
+    
+    await FirebaseMessaging.instance.requestPermission(
+      alert: true,
+      announcement: false,
+      badge: true,
+      carPlay: false,
+      criticalAlert: false,
+      provisional: false,
+      sound: true,
+    );
+    
     await FirebaseMessaging.instance
         .setForegroundNotificationPresentationOptions(
       alert: true,
@@ -54,18 +58,31 @@ void main() async {
     );
   }
   
-  runApp(MessagingExampleApp());
+  runApp(ChatApp());
 }
 
 AppStore? appStore;
 
-class ChatApp extends StatelessWidget {
+class ChatApp extends StatefulWidget {
   const ChatApp({Key? key}) : super(key: key);
+
+  @override
+  _ChatAppState createState() => _ChatAppState();
+}
+
+class _ChatAppState extends State<ChatApp> {
+  
+  @override
+  void initState() {
+    super.initState();
+
+    appStore = AppStore();
+    
+    FirebaseMessaging.onBackgroundMessage(_handleNotification);
+  }
   
   @override
   Widget build(BuildContext context) {
-    appStore = AppStore();
-
     return MaterialApp(
       title: 'Chat App',
       theme: ThemeData(
@@ -74,7 +91,29 @@ class ChatApp extends StatelessWidget {
       home: const LoginPage(),
     );
   }
+  
+  Future<void> _handleNotification(RemoteMessage message) async {
+    RemoteNotification? notification = message.notification;
+    AndroidNotification? android = message.notification?.android;
+    if (notification != null && android != null && !kIsWeb) {
+      flutterLocalNotificationsPlugin!.show(
+          notification.hashCode,
+          notification.title,
+          notification.body,
+          NotificationDetails(
+            android: AndroidNotificationDetails(
+              channel!.id,
+              channel!.name,
+              channel!.description,
+              // TODO add a proper drawable resource to android, for now using
+              //      one that already exists in example app.
+              icon: 'launch_background',
+            ),
+          ));
+    }
+  }
 }
+
 
 class MessagingExampleApp extends StatelessWidget {
   @override
@@ -252,7 +291,7 @@ class _Application extends State<Application> {
       ),
       body: SingleChildScrollView(
         child: Column(children: [
-          MetaCard('Permissions', Container()),
+          MetaCard('Permissions', Permissions()),
           MetaCard('FCM Token', TokenMonitor((token) {
             _token = token;
             return token == null

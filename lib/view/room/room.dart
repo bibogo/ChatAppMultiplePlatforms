@@ -153,12 +153,11 @@ class _RoomState extends State<Room> {
               print('Upload Image');
 
               try {
-                PickedFile? pickedFile = await _picker.getImage(
-                  source: ImageSource.gallery,
+                List<XFile> pickedFile = await _picker.pickMultiImage(
                   imageQuality: 1,
-                );
+                ) ?? [];
 
-                _roomController!.uploadPicture(widget.documentReference!, pickedFile!, appStore!.profile!);
+                _roomController!.uploadPicture(widget.documentReference!, pickedFile, appStore!.profile!);
 
               } catch (e) {
                 print(e);
@@ -170,7 +169,7 @@ class _RoomState extends State<Room> {
               textCapitalization: TextCapitalization.sentences,
               controller: _message,
               onChanged: (value) async {
-                await _roomController!.sendingMessage(widget.documentReference, appStore!.profile!, value);
+                await _roomController!.sendingMessage(widget.documentReference!, appStore!.profile!, value);
               },
               decoration: InputDecoration.collapsed(
                 hintText: 'Send a message...',
@@ -183,7 +182,7 @@ class _RoomState extends State<Room> {
             color: Theme.of(context).primaryColor,
             onPressed: () async {
               if (_message!.text.isNotEmpty) {
-                _roomController!.sendMessage(widget.documentReference, appStore!.profile!, _message!.text);
+                _roomController!.sendMessage(widget.documentReference!, appStore!.profile!, _message!.text);
                 _message!.text = '';
               }
             },

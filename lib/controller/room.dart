@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:chat_app_multiple_platforms/domain/message.dart';
 import 'package:chat_app_multiple_platforms/domain/profile.dart';
 import 'package:chat_app_multiple_platforms/service/firebase.dart';
@@ -5,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
 
 class RoomController {
   List<Map<String, dynamic>> messages = [];
@@ -25,9 +28,9 @@ class RoomController {
     });
   }
 
-  void sendMessage(DocumentReference? documentReference, Profile profile, String message) async {
+  void sendMessage(DocumentReference documentReference, Profile profile, String message) async {
     if (doc != null) {
-      doc?.set({
+      await doc?.set({
         'text': message,
         'isTyping': false,
         'dateCreated': new DateTime.now(),
@@ -45,11 +48,15 @@ class RoomController {
         ..userDocRef = profile.userDoc!.reference
         ..avatarURL = profile.avatarURL;
 
-      documentReference!.collection('message').add(_message.toJSON());
+      await documentReference.collection('message').add(_message.toJSON());
     }
+
+    DocumentSnapshot documentSnapshot = await documentReference.get();
+
+    _sendNotification(await documentSnapshot.get('uuids'), message, profile);
   }
 
-  Future<void> sendingMessage(DocumentReference? documentReference, Profile profile, String message) async {
+  Future<void> sendingMessage(DocumentReference documentReference, Profile profile, String message) async {
     if (doc == null && !isTyping) {
       isTyping = true;
       Message _message = Message()
@@ -61,7 +68,7 @@ class RoomController {
         ..userDocRef = profile.userDoc!.reference
         ..avatarURL = profile.avatarURL;
 
-      doc = await documentReference!.collection('message').add(_message.toJSON());
+      doc = await documentReference.collection('message').add(_message.toJSON());
     } else {
       if (message.isNotEmpty) {
         doc?.set({
@@ -74,27 +81,71 @@ class RoomController {
       }
     }
   }
-  
-  uploadPicture(DocumentReference documentReference, PickedFile pickedFile, Profile profile) async {
+
+  uploadPicture(DocumentReference documentReference, List<XFile> pickedFile, Profile profile) async {
     try {
-      String fileName = DateFormat('yyyyMMddHHmmssS').format(DateTime.now());
-      Reference ref = await FirebaseStorage.instance.ref('rooms').child(documentReference.id).child('$fileName.png');
-      await ref.putData(await pickedFile.readAsBytes());
-      String url = await ref.getDownloadURL();
+      List<String> urls = [];
+      int index = 0;
 
-      Message _message = Message()
-        ..text = ''
-        ..dateCreated = new DateTime.now()
-        ..uuid = profile.uuid
-        ..isTyping = false
-        ..isReceived = false
-        ..userDocRef = profile.userDoc!.reference
-        ..avatarURL = profile.avatarURL
-        ..images = [url];
+      await _uploadPhotoSync(index, pickedFile, urls, documentReference.id);
 
-      documentReference.collection('message').add(_message.toJSON());
+      if (urls.length > 0) {
+        Message _message = Message()
+          ..text = ''
+          ..dateCreated = new DateTime.now()
+          ..uuid = profile.uuid
+          ..isTyping = false
+          ..isReceived = false
+          ..userDocRef = profile.userDoc!.reference
+          ..avatarURL = profile.avatarURL
+          ..images = urls;
+
+        await documentReference.collection('message').add(_message.toJSON());
+
+        DocumentSnapshot documentSnapshot = await documentReference.get();
+
+        await _sendNotification(await documentSnapshot.get('uuids'), 'Sent you a photo', profile);
+      }
     } catch (e) {
       print(e);
+    }
+  }
+
+  _uploadPhotoSync(int index, List<XFile> pickedFile, List<String> urls, String id) async {
+    if (index <= pickedFile.length - 1) {
+      final _image = pickedFile.elementAt(index);
+      String fileName = DateFormat('yyyyMMddHHmmssS').format(DateTime.now());
+      Reference ref = await FirebaseStorage.instance.ref('rooms').child(id).child('$fileName.png');
+      await ref.putData(await _image.readAsBytes());
+
+      urls.add(await ref.getDownloadURL());
+      index++;
+
+      await _uploadPhotoSync(index, pickedFile, urls, id);
+    }
+  }
+
+  _sendNotification(List uuids, String message, Profile sender) async {
+    List<Profile> profiles = [];
+    List<String> tokens = [];
+
+    await FirebaseService.buildProfile(profiles, 0, uuids);
+
+    profiles.forEach((_profile) {
+      if (_profile.fcmToken != null) tokens.add(_profile.fcmToken!);
+    });
+
+    if (tokens.length > 0) {
+      String key = 'AAAAFGC0U5c:APA91bGgJDRh2KHXC8QfMYcSK5I0kKRDShFqzcXRHuR32TktbRvBlksKZriofb46aF9hh-tcsURl-BrTT4izgWHMxzjSLLY6GJH0FWlVpwebyTIrZE_W692BgO3dqaycainv3gzIUeUB';
+      Map<String, String> headers = {'Authorization': 'key=$key', 'Content-Type': 'application/json'};
+      String body = jsonEncode({
+        "registration_ids": tokens,
+        "collapse_key": "New Message",
+        "priority": "high",
+        "notification": {"title": sender.displayName, "body": message}
+      });
+
+      await http.post(Uri.parse('https://fcm.googleapis.com/fcm/send'), headers: headers, body: body);
     }
   }
 }
