@@ -16,23 +16,25 @@ class LoginController {
       
       String uuid = userCredential.user!.uid;
       DocumentSnapshot<Profile> user = await FirebaseService.getUsersEqual(uuid);
-
+      String? fcmToken = await FirebaseMessaging.instance.getToken(vapidKey: 'BGpdLRsMJKvFDD9odfPk92uBg-JbQbyoiZdah0XlUyrjG4SDgUsE1iC_kdRgt4Kn0CO7K3RTswPZt61NNuO0XoA');
       if (!user.exists) {
         
         String displayName = '${email}'.split('@')[0];
 
         appStore!.profile = Profile(uuid: uuid, email: email, password: password, displayName: '@$displayName');
-        appStore!.profile?.fcmToken = await FirebaseMessaging.instance.getToken();
+        appStore!.profile?.fcmToken = fcmToken;
 
         user.reference.set(appStore!.profile!);
         appStore!.profile!.userDoc = user;
       } else {
         appStore!.profile = user.data();
+        appStore!.profile?.fcmToken = fcmToken;
+        await appStore!.profile!.userDoc!.reference.update({'fcmToken': fcmToken});
       }
 
       appStore!.profile!.password = password;
       
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => ChatList()));
+      Navigator.push(context, MaterialPageRoute(builder: (context) => ChatList()));
     } catch (error) {
       print(error);
     }

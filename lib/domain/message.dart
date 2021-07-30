@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class Message {
+class ChatMessage {
   String text = '';
   DateTime dateCreated = DateTime.now();
   String uuid = '';
@@ -10,9 +10,9 @@ class Message {
   String avatarURL = '';
   List? images;
 
-  Message();
+  ChatMessage();
 
-  Message.convertFromDoc(DocumentSnapshot doc)
+  ChatMessage.convertFromDoc(DocumentSnapshot doc)
       : text = doc.get('text'),
         dateCreated = doc.get('dateCreated').toDate(),
         uuid = doc.get('uuid'),

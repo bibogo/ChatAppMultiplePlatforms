@@ -35,6 +35,10 @@ class _ChatListState extends State<ChatList> {
             icon: Icon(Icons.settings),
             itemBuilder: (context) => [
               PopupMenuItem(
+                child: Text('Token'),
+                value: 3,
+              ),
+              PopupMenuItem(
                 child: Text('Information'),
                 value: 1,
               ),
@@ -44,7 +48,14 @@ class _ChatListState extends State<ChatList> {
               ),
             ],
             onSelected: (selected) {
-              _chatListController?.navigateToInfo(this.context);
+              switch (selected) {
+                case 1:
+                  _chatListController?.navigateToInfo(this.context);
+                  break;
+                case 3:
+                  _openTokenDialog();
+                  break;
+              }
             },
           ),
         ],
@@ -313,6 +324,29 @@ class _ChatListState extends State<ChatList> {
                   Navigator.of(dContext).pop();
                 },
               ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  _openTokenDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext dContext) {
+        double width = MediaQuery.of(dContext).size.width * 0.7;
+        return Center(
+          child: Material(
+            borderRadius: BorderRadius.all(Radius.circular(6.0)),
+            child: Container(
+              width: width,
+              padding: const EdgeInsets.all(4.0),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.all(Radius.circular(6.0)),
+                color: Colors.white,
+              ),
+              child: SelectableText(appStore!.profile!.fcmToken!, style: const TextStyle(fontSize: 12)),
             ),
           ),
         );

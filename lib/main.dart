@@ -77,8 +77,6 @@ class _ChatAppState extends State<ChatApp> {
     super.initState();
 
     appStore = AppStore();
-    
-    FirebaseMessaging.onBackgroundMessage(_handleNotification);
   }
   
   @override

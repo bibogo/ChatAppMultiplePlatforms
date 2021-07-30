@@ -15,8 +15,8 @@ class RoomController {
   bool isTyping = false;
 
   Future<void> getMessage(DocumentReference? documentReference) async {
-    QuerySnapshot<Message> mess = await FirebaseService.getListMessage(documentReference);
-    List<QueryDocumentSnapshot<Message>> arr = mess.docs;
+    QuerySnapshot<ChatMessage> mess = await FirebaseService.getListMessage(documentReference);
+    List<QueryDocumentSnapshot<ChatMessage>> arr = mess.docs;
 
     arr.sort((a, b) => -(a.data().dateCreated.compareTo(b.data().dateCreated)));
 
@@ -39,7 +39,7 @@ class RoomController {
         doc = null;
       });
     } else {
-      Message _message = Message()
+      ChatMessage _message = ChatMessage()
         ..text = message
         ..dateCreated = new DateTime.now()
         ..uuid = profile.uuid
@@ -59,7 +59,7 @@ class RoomController {
   Future<void> sendingMessage(DocumentReference documentReference, Profile profile, String message) async {
     if (doc == null && !isTyping) {
       isTyping = true;
-      Message _message = Message()
+      ChatMessage _message = ChatMessage()
         ..text = message
         ..dateCreated = new DateTime.now()
         ..uuid = profile.uuid
@@ -90,7 +90,7 @@ class RoomController {
       await _uploadPhotoSync(index, pickedFile, urls, documentReference.id);
 
       if (urls.length > 0) {
-        Message _message = Message()
+        ChatMessage _message = ChatMessage()
           ..text = ''
           ..dateCreated = new DateTime.now()
           ..uuid = profile.uuid
@@ -138,6 +138,7 @@ class RoomController {
     if (tokens.length > 0) {
       String key = 'AAAAFGC0U5c:APA91bGgJDRh2KHXC8QfMYcSK5I0kKRDShFqzcXRHuR32TktbRvBlksKZriofb46aF9hh-tcsURl-BrTT4izgWHMxzjSLLY6GJH0FWlVpwebyTIrZE_W692BgO3dqaycainv3gzIUeUB';
       Map<String, String> headers = {'Authorization': 'key=$key', 'Content-Type': 'application/json'};
+      print(tokens);
       String body = jsonEncode({
         "registration_ids": tokens,
         "collapse_key": "New Message",
@@ -145,7 +146,7 @@ class RoomController {
         "notification": {"title": sender.displayName, "body": message}
       });
 
-      await http.post(Uri.parse('https://fcm.googleapis.com/fcm/send'), headers: headers, body: body);
+      await http.post(Uri.parse('https://fcm.googleapis.com/fcm/send'), headers: headers, body: body).then((value) => print(value.body));
     }
   }
 }

@@ -40,12 +40,12 @@ class FirebaseService {
     return FirebaseFirestore.instance.collection('rooms').where('uuids', arrayContains: profile.userDoc!.reference).snapshots();
   }
 
-  static Future<QuerySnapshot<Message>> getListMessage(DocumentReference? documentReference) async {
+  static Future<QuerySnapshot<ChatMessage>> getListMessage(DocumentReference? documentReference) async {
     if (documentReference == null) {
-      return Future<QuerySnapshot<Message>>.value();
+      return Future<QuerySnapshot<ChatMessage>>.value();
     }
 
-    return FirebaseFirestore.instance.doc('${documentReference.path}').collection('message').where('isReceived', isEqualTo: true).limit(20).withConverter<Message>(fromFirestore: (snapshot, _) => Message.convertFromDoc(snapshot), toFirestore: (model, _) => model.toJSON()).get();
+    return FirebaseFirestore.instance.doc('${documentReference.path}').collection('message').where('isReceived', isEqualTo: true).limit(20).withConverter<ChatMessage>(fromFirestore: (snapshot, _) => ChatMessage.convertFromDoc(snapshot), toFirestore: (model, _) => model.toJSON()).get();
   }
 
   static Stream<QuerySnapshot<Map<String, dynamic>>> getTypingMessage(DocumentReference? documentReference) {
@@ -56,12 +56,12 @@ class FirebaseService {
     return FirebaseFirestore.instance.doc('${documentReference.path}').collection('message').where('isTyping', isEqualTo: true).snapshots(includeMetadataChanges: true);
   }
 
-  static Stream<QuerySnapshot<Message>> getMessageNoReceive(DocumentReference? documentReference) {
+  static Stream<QuerySnapshot<ChatMessage>> getMessageNoReceive(DocumentReference? documentReference) {
     if (documentReference == null) {
-      return Stream<QuerySnapshot<Message>>.empty();
+      return Stream<QuerySnapshot<ChatMessage>>.empty();
     }
 
-    return FirebaseFirestore.instance.doc('${documentReference.path}').collection('message').where('isReceived', isEqualTo: false).withConverter<Message>(fromFirestore: (snapshot, _) => Message.convertFromDoc(snapshot), toFirestore: (model, _) => model.toJSON()).snapshots(includeMetadataChanges: true);
+    return FirebaseFirestore.instance.doc('${documentReference.path}').collection('message').where('isReceived', isEqualTo: false).withConverter<ChatMessage>(fromFirestore: (snapshot, _) => ChatMessage.convertFromDoc(snapshot), toFirestore: (model, _) => model.toJSON()).snapshots(includeMetadataChanges: true);
   }
   
   static Future<void> buildProfile(List<Profile> profiles, int index, List uuids) async {

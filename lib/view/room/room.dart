@@ -5,9 +5,12 @@ import 'package:chat_app_multiple_platforms/domain/profile.dart';
 import 'package:chat_app_multiple_platforms/main.dart';
 import 'package:chat_app_multiple_platforms/service/firebase.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
@@ -43,6 +46,42 @@ class _RoomState extends State<Room> {
     });
 
     super.initState();
+
+    FirebaseMessaging.instance
+        .getInitialMessage()
+        .then((RemoteMessage? message) {
+      if (message != null) {
+        Navigator.pushNamed(context, '/message',
+            arguments: MessageArguments(message, true));
+      }
+    });
+
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      RemoteNotification? notification = message.notification;
+      AndroidNotification? android = message.notification?.android;
+      if (notification != null && android != null && !kIsWeb) {
+        flutterLocalNotificationsPlugin!.show(
+            notification.hashCode,
+            notification.title,
+            notification.body,
+            NotificationDetails(
+              android: AndroidNotificationDetails(
+                channel!.id,
+                channel!.name,
+                channel!.description,
+                // TODO add a proper drawable resource to android, for now using
+                //      one that already exists in example app.
+                icon: 'launch_background',
+              ),
+            ));
+      }
+    });
+
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      print('A new onMessageOpenedApp event was published!');
+      Navigator.pushNamed(context, '/message',
+          arguments: MessageArguments(message, true));
+    });
   }
 
   @override
@@ -89,7 +128,7 @@ class _RoomState extends State<Room> {
     return Expanded(
       child: Container(
         child: ClipRect(
-          child: StreamBuilder<QuerySnapshot<Message>>(
+          child: StreamBuilder<QuerySnapshot<ChatMessage>>(
             stream: FirebaseService.getMessageNoReceive(widget.documentReference),
             builder: (sContext, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
@@ -267,7 +306,7 @@ class MessageBuilder extends StatefulWidget {
 
 class _MessageBuilderState extends State<MessageBuilder> {
   bool isMe = false;
-  Message? message;
+  ChatMessage? message;
   bool isLoaded = false;
 
   @override
@@ -277,11 +316,11 @@ class _MessageBuilderState extends State<MessageBuilder> {
 
   @override
   Widget build(BuildContext context) {
-    message = widget.messageMap?['message'] as Message;
+    message = widget.messageMap?['message'] as ChatMessage;
     isMe = message!.uuid == appStore!.profile!.uuid;
 
     if (!message!.isReceived) {
-      (widget.messageMap?['query'] as QueryDocumentSnapshot<Message>).reference.update({
+      (widget.messageMap?['query'] as QueryDocumentSnapshot<ChatMessage>).reference.update({
         'isReceived': true,
       });
     }
@@ -343,7 +382,7 @@ class _MessageBuilderState extends State<MessageBuilder> {
   }
 
   _buildMessage(BuildContext context) {
-    Message _message = message!;
+    ChatMessage _message = message!;
     if (_message.text.isEmpty && (_message.images ?? []).length == 0) {
       return Container();
     }
