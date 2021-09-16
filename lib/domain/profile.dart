@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Profile {
@@ -29,4 +31,22 @@ class Profile {
         'avatarURL': avatarURL,
         'fcmToken': fcmToken,
       };
+}
+
+class ProfileList {
+  List<Profile> profiles = [];
+
+  ProfileList(this.profiles);
+  
+  List<String> displayName() {
+    return profiles.map((e) => e.displayName).toList();
+  }
+
+  List<String> uuids({String? ignore}) {
+    return profiles.where((e) => e.uuid != ignore).map((e) => e.uuid).toList();
+  }
+  
+  int length() => profiles.length;
+  
+  Profile elementAt(int index) => profiles.elementAt(index);
 }

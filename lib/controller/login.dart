@@ -21,20 +21,20 @@ class LoginController {
         
         String displayName = '${email}'.split('@')[0];
 
-        appStore!.profile = Profile(uuid: uuid, email: email, password: password, displayName: '@$displayName');
-        appStore!.profile?.fcmToken = fcmToken;
+        app.profile = Profile(uuid: uuid, email: email, password: password, displayName: '@$displayName');
+        app.profile?.fcmToken = fcmToken;
 
-        user.reference.set(appStore!.profile!);
-        appStore!.profile!.userDoc = user;
+        user.reference.set(app.profile!);
+        app.profile!.userDoc = user;
       } else {
-        appStore!.profile = user.data();
-        appStore!.profile?.fcmToken = fcmToken;
-        await appStore!.profile!.userDoc!.reference.update({'fcmToken': fcmToken});
+        app.profile = user.data();
+        app.profile?.fcmToken = fcmToken;
+        await app.profile!.userDoc!.reference.update({'fcmToken': fcmToken});
       }
 
-      appStore!.profile!.password = password;
+      app.profile!.password = password;
       
-      Navigator.push(context, MaterialPageRoute(builder: (context) => ChatList()));
+      Navigator.pushNamed(context, '/chatList');
     } catch (error) {
       print(error);
     }

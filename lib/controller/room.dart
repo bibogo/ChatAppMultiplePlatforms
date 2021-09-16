@@ -1,144 +1,220 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:chat_app_multiple_platforms/domain/message.dart';
 import 'package:chat_app_multiple_platforms/domain/profile.dart';
+import 'package:chat_app_multiple_platforms/main.dart';
 import 'package:chat_app_multiple_platforms/service/firebase.dart';
+import 'package:chat_app_multiple_platforms/service/message_handler.dart';
+import 'package:chat_app_multiple_platforms/view/room/room.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 
 class RoomController {
-  List<Map<String, dynamic>> messages = [];
-  DocumentReference? doc;
-  bool isTyping = false;
+  BuildContext _context;
+  StreamSubscription<RemoteMessage>? onMessageSS;
+  StreamSubscription<RemoteMessage>? onMessageOpenedAppSS;
+  MessagesHandler handler = MessagesHandler();
 
-  Future<void> getMessage(DocumentReference? documentReference) async {
-    QuerySnapshot<ChatMessage> mess = await FirebaseService.getListMessage(documentReference);
-    List<QueryDocumentSnapshot<ChatMessage>> arr = mess.docs;
+  RoomController(this._context, Stream<RemoteMessage> onMessageStream, Stream<RemoteMessage> onMessageOpenedAppStream) {
+    messages = [];
+    localMessages = {};
 
-    arr.sort((a, b) => -(a.data().dateCreated.compareTo(b.data().dateCreated)));
+    _initFirebaseMessaging(onMessageStream, onMessageOpenedAppStream);
+  }
 
-    arr.forEach((item) {
-      print('${item.data().text} -${item.data().dateCreated}');
-      if (!item.data().isTyping && item.data().isReceived) {
-        messages.add({'message': item.data(), 'query': item});
+  _initFirebaseMessaging(Stream<RemoteMessage> onMessageStream, Stream<RemoteMessage> onMessageOpenedAppStream) {
+    FirebaseMessaging.instance.getInitialMessage().then((RemoteMessage? message) {
+      if (message != null) {
+        Navigator.pushNamed(_context, '/room');
+      }
+    });
+
+    onMessageOpenedAppSS = onMessageOpenedAppStream.listen((RemoteMessage message) {
+      Navigator.pushNamed(_context, '/room');
+    });
+
+    onMessageSS = onMessageStream.listen((RemoteMessage message) {
+      RemoteNotification? notification = message.notification;
+      AndroidNotification? android = message.notification?.android;
+      if (notification != null && android != null && !kIsWeb) {
+        flutterLocalNotificationsPlugin!.show(
+            notification.hashCode,
+            notification.title,
+            notification.body,
+            NotificationDetails(
+              android: AndroidNotificationDetails(
+                channel!.id,
+                channel!.name,
+                channel!.description,
+                icon: 'launch_background',
+              ),
+            ));
       }
     });
   }
 
-  void sendMessage(DocumentReference documentReference, Profile profile, String message) async {
-    if (doc != null) {
-      await doc?.set({
-        'text': message,
-        'isTyping': false,
-        'dateCreated': new DateTime.now(),
-      }, SetOptions(merge: true)).then((value) {
-        isTyping = false;
-        doc = null;
+  dispose() {
+    onMessageSS!.cancel();
+    onMessageOpenedAppSS!.cancel();
+  }
+
+  List<ChatMessageState> messages = []; //main list
+  Map<String, dynamic> localMessages = {};
+  int indexIncrease = 1;
+
+  _messageStream() {
+    final docRef = app.currRoom['roomRef'] as DocumentReference;
+    FirebaseService.syncingMessage(docRef).listen((event) {
+      event.docs.forEach((item) {
+        ChatMessage _message = item.data();
+        List<Map<String, dynamic>> filesData = [];
+        
+        if (_message.type == 'IMAGE') {
+          _message.images?.forEach((item) {
+            filesData.add({'name': item['name'], 'url': item['url']});
+          });
+        }
+
+        ChatMessageState _messageState = ChatMessageState(item.id, _message, item.reference, item, files: filesData);
+        handler.add(_messageState.id, _messageState);
       });
-    } else {
-      ChatMessage _message = ChatMessage()
-        ..text = message
-        ..dateCreated = new DateTime.now()
-        ..uuid = profile.uuid
-        ..isTyping = true
-        ..isReceived = false
-        ..userDocRef = profile.userDoc!.reference
-        ..avatarURL = profile.avatarURL;
 
-      await documentReference.collection('message').add(_message.toJSON());
-    }
-
-    DocumentSnapshot documentSnapshot = await documentReference.get();
-
-    _sendNotification(await documentSnapshot.get('uuids'), message, profile);
+      handler.reload();
+    });
   }
 
-  Future<void> sendingMessage(DocumentReference documentReference, Profile profile, String message) async {
-    if (doc == null && !isTyping) {
-      isTyping = true;
-      ChatMessage _message = ChatMessage()
-        ..text = message
-        ..dateCreated = new DateTime.now()
-        ..uuid = profile.uuid
-        ..isTyping = true
-        ..isReceived = false
-        ..userDocRef = profile.userDoc!.reference
-        ..avatarURL = profile.avatarURL;
+  DocumentReference? doc;
+  bool isTyping = false;
 
-      doc = await documentReference.collection('message').add(_message.toJSON());
-    } else {
-      if (message.isNotEmpty) {
-        doc?.set({
-          'text': message,
-        }, SetOptions(merge: true));
-      } else {
-        await doc?.delete();
-        isTyping = false;
-        doc = null;
-      }
-    }
+  Future<void> initDataMessageForm(DocumentReference documentReference) async {
+    QuerySnapshot<ChatMessage> mess = await FirebaseService.getListMessage(documentReference);
+    handler.init(mess.docs, callback: (args) {
+      indexIncrease = args['indexIncrease'];
+    });
+
+    handler.reload();
+
+    _messageStream();
   }
 
-  uploadPicture(DocumentReference documentReference, List<XFile> pickedFile, Profile profile) async {
-    try {
-      List<String> urls = [];
-      int index = 0;
+  void sendMessage(DocumentReference docRef, Profile profile, String message) async {
+    ChatMessage _message = ChatMessage()
+      ..text = message
+      ..dateCreated = new DateTime.now()
+      ..uuid = profile.uuid
+      ..isTyping = true
+      ..userDocRef = profile.userDoc!.reference
+      ..avatarURL = profile.avatarURL;
 
-      await _uploadPhotoSync(index, pickedFile, urls, documentReference.id);
+    (app.currRoom['profiles'] as ProfileList).uuids(ignore: profile.uuid).forEach((item) {
+        _message.received.add({'${item}': false});
+    });
+    
+    final id = '${profile.uuid}-$indexIncrease';
 
-      if (urls.length > 0) {
-        ChatMessage _message = ChatMessage()
-          ..text = ''
-          ..dateCreated = new DateTime.now()
-          ..uuid = profile.uuid
-          ..isTyping = false
-          ..isReceived = false
-          ..userDocRef = profile.userDoc!.reference
-          ..avatarURL = profile.avatarURL
-          ..images = urls;
-
-        await documentReference.collection('message').add(_message.toJSON());
-
-        DocumentSnapshot documentSnapshot = await documentReference.get();
-
-        await _sendNotification(await documentSnapshot.get('uuids'), 'Sent you a photo', profile);
-      }
-    } catch (e) {
-      print(e);
+    if (localMessages['$id']['status'] == 'IS_TYPING') {
+      (localMessages['$id']['func'] as StreamSubscription<void>).cancel();
     }
+
+    localMessages['$id']['status'] = 'SENDING';
+
+    final _state = ChatMessageState(id, _message, docRef.collection('messages').doc(id), null);
+    handler.add(id, _state);
+    handler.reload();
+    
+    indexIncrease++;
+
+    _sendNotification(app.currRoom['profiles'] as ProfileList, message, profile);
   }
 
-  _uploadPhotoSync(int index, List<XFile> pickedFile, List<String> urls, String id) async {
+  //status: IS_TYPING, TYPING, SENDING, SEND
+
+  
+
+  uploadPicture(DocumentReference docRef, List<XFile> pickedFile, Profile profile) async {
+    if (indexIncrease > 1) indexIncrease++;
+
+    final now = new DateTime.now();
+    List<Map<String, dynamic>> files = [];
+    List<Map<String, dynamic>> filesData = [];
+
+    for(int i = 0; i < pickedFile.length; i++) {
+      final fileName = '${DateFormat('yyyyMMddHHmmssS').format(now)}-$i';
+
+      files.add({'name': fileName, 'file': pickedFile.elementAt(i), 'url': ''});
+      filesData.add({'name': fileName, 'url': ''});
+    }
+
+    ChatMessage _message = ChatMessage()
+      ..text = ''
+      ..dateCreated = now
+      ..uuid = profile.uuid
+      ..isTyping = false
+      ..userDocRef = profile.userDoc!.reference
+      ..avatarURL = profile.avatarURL
+      ..images = filesData
+      ..type = 'IMAGE';
+
+    (app.currRoom['profiles'] as ProfileList).uuids(ignore: profile.uuid).forEach((item) {
+      _message.received.add({'${item}': false});
+    });
+
+    final id = '${profile.uuid}-$indexIncrease';
+    
+    handler.add(id, ChatMessageState(id, _message, docRef.collection('messages').doc(id), null, files: files));
+    handler.reload();
+  }
+  
+  updatePhotoData(ChatMessageState _state, List<Map<String, dynamic>> files) {
+    
+    ChatMessage _message = _state.chatMessage;
+
+    _message.images = files;
+
+    _state.docRef.set(_message.toJSON());
+  }
+  
+  Future<List<Map<String, dynamic>>> uploadPhoto(ChatMessageState _state) async {
+    List<Map<String, dynamic>> urls = [];
+    int index = 0;
+    
+    await _uploadPhotoSync(index, _state.files!, urls, _state.docRef.id);
+    return urls;
+  }
+
+  _uploadPhotoSync(int index, List<Map<String, dynamic>> pickedFile, List<Map<String, dynamic>> urls, String id) async {
     if (index <= pickedFile.length - 1) {
       final _image = pickedFile.elementAt(index);
-      String fileName = DateFormat('yyyyMMddHHmmssS').format(DateTime.now());
-      Reference ref = await FirebaseStorage.instance.ref('rooms').child(id).child('$fileName.png');
-      await ref.putData(await _image.readAsBytes());
+      
+      Reference ref = await FirebaseStorage.instance.ref('rooms').child(id).child('${_image['name']}.png');
+      await ref.putData(await (_image['file'] as XFile).readAsBytes());
 
-      urls.add(await ref.getDownloadURL());
+      urls.add({'name': _image['name'], 'url': await ref.getDownloadURL()});
       index++;
 
       await _uploadPhotoSync(index, pickedFile, urls, id);
     }
   }
 
-  _sendNotification(List uuids, String message, Profile sender) async {
+  _sendNotification(ProfileList _profiles, String message, Profile sender) async {
     List<Profile> profiles = [];
     List<String> tokens = [];
 
-    await FirebaseService.buildProfile(profiles, 0, uuids);
-
-    profiles.forEach((_profile) {
-      if (_profile.fcmToken != null) tokens.add(_profile.fcmToken!);
+    _profiles.profiles.forEach((_profile) {
+      if (_profile.fcmToken != null && _profile.uuid != sender.uuid) tokens.add(_profile.fcmToken!);
     });
 
     if (tokens.length > 0) {
       String key = 'AAAAFGC0U5c:APA91bGgJDRh2KHXC8QfMYcSK5I0kKRDShFqzcXRHuR32TktbRvBlksKZriofb46aF9hh-tcsURl-BrTT4izgWHMxzjSLLY6GJH0FWlVpwebyTIrZE_W692BgO3dqaycainv3gzIUeUB';
       Map<String, String> headers = {'Authorization': 'key=$key', 'Content-Type': 'application/json'};
-      print(tokens);
       String body = jsonEncode({
         "registration_ids": tokens,
         "collapse_key": "New Message",
@@ -146,7 +222,56 @@ class RoomController {
         "notification": {"title": sender.displayName, "body": message}
       });
 
-      await http.post(Uri.parse('https://fcm.googleapis.com/fcm/send'), headers: headers, body: body).then((value) => print(value.body));
+      await http.post(Uri.parse('https://fcm.googleapis.com/fcm/send'), headers: headers, body: body);
+    }
+  }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  sendingMessage(DocumentReference docRef, Profile profile, String message) async {
+    ChatMessage _message = ChatMessage()
+      ..text = message
+      ..dateCreated = new DateTime.now()
+      ..uuid = profile.uuid
+      ..isTyping = true
+      ..userDocRef = profile.userDoc!.reference
+      ..avatarURL = profile.avatarURL;
+
+    final id = '${profile.uuid}-$indexIncrease';
+
+    if (!localMessages.containsKey(id)) {
+      localMessages.addAll({
+        '$id': {
+          'status': 'IS_TYPING',
+          'func': docRef.collection('messages').doc(id).set(_message.toJSON()).asStream().listen((event) {
+            localMessages['$id']['status'] = 'TYPING';
+          })
+        }
+      });
+    } else if (_message.text.isEmpty) {
+      if (localMessages['$id']['status'] == 'IS_TYPING') {
+        (localMessages['$id']['func'] as StreamSubscription<void>).cancel();
+      } else {
+        docRef.collection('messages').doc(id).delete();
+      }
+
+      localMessages.remove(id);
     }
   }
 }

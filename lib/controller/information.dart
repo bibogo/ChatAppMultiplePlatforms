@@ -13,12 +13,12 @@ class InformationController {
   
   Future<void> changeUserProfile(PickedFile pickedFile) async {
     try {
-      Reference ref = await FirebaseStorage.instance.ref('users').child(appStore!.profile!.uuid).child('avatar.png');
+      Reference ref = await FirebaseStorage.instance.ref('users').child(app.profile!.uuid).child('avatar.png');
       await ref.putData(await pickedFile.readAsBytes());
 
-      appStore!.profile!.avatarURL = await ref.getDownloadURL();
+      app.profile!.avatarURL = await ref.getDownloadURL();
       
-      await appStore!.profile!.userDoc!.reference.update(appStore!.profile!.toJSON());
+      await app.profile!.userDoc!.reference.update(app.profile!.toJSON());
           
     } catch (e) {
      print(e);
@@ -32,14 +32,14 @@ class InformationController {
     image.Image resizeImage2 = image.copyResize(baseSizeImage, height: 165, width: 165);
 
 
-    Reference ref1 = await FirebaseStorage.instance.ref('users').child(appStore!.profile!.uuid).child('avatar400x400.png');
-    Reference ref2 = await FirebaseStorage.instance.ref('users').child(appStore!.profile!.uuid).child('avatar165x165.png');
+    Reference ref1 = await FirebaseStorage.instance.ref('users').child(app.profile!.uuid).child('avatar400x400.png');
+    Reference ref2 = await FirebaseStorage.instance.ref('users').child(app.profile!.uuid).child('avatar165x165.png');
 
     await ref1.putData(resizeImage1.getBytes());
     await ref2.putData(resizeImage2.getBytes());
 
-    appStore!.profile!.avatarURL = await ref1.getDownloadURL();
+    app.profile!.avatarURL = await ref1.getDownloadURL();
 
-    await appStore!.profile!.userDoc!.reference.update(appStore!.profile!.toJSON());
+    await app.profile!.userDoc!.reference.update(app.profile!.toJSON());
   }
 }

@@ -21,10 +21,10 @@ class _InformationState extends State<Information> {
   final ImagePicker _picker = ImagePicker();
   PickedFile? pickedFile;
   
-  TextEditingController _email = TextEditingController(text: appStore!.profile!.email);
-  TextEditingController _password = TextEditingController(text: appStore!.profile!.password);
-  TextEditingController _displayName = TextEditingController(text: appStore!.profile!.displayName);
-  TextEditingController _description = TextEditingController(text: appStore!.profile!.description);
+  TextEditingController _email = TextEditingController(text: app.profile!.email);
+  TextEditingController _password = TextEditingController(text: app.profile!.password);
+  TextEditingController _displayName = TextEditingController(text: app.profile!.displayName);
+  TextEditingController _description = TextEditingController(text: app.profile!.description);
 
   StreamController<bool> _dirtySteam = StreamController();
   StreamController<PickedFile> _imageStream = StreamController();
@@ -110,8 +110,8 @@ class _InformationState extends State<Information> {
                           try {
                             pickedFile = await _picker.getImage(
                               source: ImageSource.gallery,
-                              maxWidth: AppStore.AVATAR_RESOLUTION_WIDTH,
-                              maxHeight: AppStore.AVATAR_RESOLUTION_HEIGHT,
+                              maxWidth: App.AVATAR_RESOLUTION_WIDTH,
+                              maxHeight: App.AVATAR_RESOLUTION_HEIGHT,
                               imageQuality: 1,
                             );
                             
@@ -171,7 +171,7 @@ class _InformationState extends State<Information> {
                           ),
                           onSubmitted: (value) {
                             _dirtySteam.add(true);
-                            appStore!.profile!.displayName = value;
+                            app.profile!.displayName = value;
                           },
                         ),
                       ),
@@ -185,7 +185,7 @@ class _InformationState extends State<Information> {
                           ),
                           onSubmitted: (value) {
                             _dirtySteam.add(true);
-                            appStore!.profile!.description = value;
+                            app.profile!.description = value;
                           },
                         ),
                       ),
