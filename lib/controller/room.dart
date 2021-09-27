@@ -223,6 +223,8 @@ class RoomController {
           'date': DateUtils.dateOnly(_message.dateCreated)
         });
       });
+
+      _sendNotification(app.currRoom['infoList'] as InfoList, 'Upload ${_message.images!.length} photos.', app.profile!);
     });
   }
   
