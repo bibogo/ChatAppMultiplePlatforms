@@ -4,6 +4,8 @@ import 'dart:isolate';
 import 'package:chat_app_multiple_platforms/domain/message.dart';
 import 'package:chat_app_multiple_platforms/main.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 typedef MessCallback = Function(Map<String, dynamic> args);
 
@@ -11,6 +13,7 @@ class MessagesHandler {
   List<ChatMessageState> messages = [];
   Map<String, dynamic> options = {};
   StreamController<List<ChatMessageState>> lStream = StreamController.broadcast();
+  List<Map<String, dynamic>> imgList = [];
 
   void init(List<QueryDocumentSnapshot<ChatMessage>> lData, {MessCallback? callback}) {
     var _increasement = 1;
@@ -24,9 +27,22 @@ class MessagesHandler {
       }
 
       if (item.data().uuid == app.profile!.uuid) {
-        _increasement++;
+        var increase = item.id.length > 1 ? int.parse(item.id.split('-')[1]) : _increasement;
+        if (increase > _increasement) _increasement = increase;
+        else _increasement++;
+      }
+      
+      if (_message.type == 'IMAGE') {
+        _message.images!.forEach((item) {
+          imgList.add({
+            'url': item['url'],
+            'name': item['name'],
+            'date': DateUtils.dateOnly(_message.dateCreated)
+          });
+        });
       }
     });
+
     callback!({'indexIncrease': _increasement});
   }
   

@@ -22,12 +22,17 @@ class RoomController {
   StreamSubscription<RemoteMessage>? onMessageSS;
   StreamSubscription<RemoteMessage>? onMessageOpenedAppSS;
   MessagesHandler handler = MessagesHandler();
+  StreamSubscription? listeningRoom;
 
   RoomController(this._context, Stream<RemoteMessage> onMessageStream, Stream<RemoteMessage> onMessageOpenedAppStream) {
     messages = [];
     localMessages = {};
 
     _initFirebaseMessaging(onMessageStream, onMessageOpenedAppStream);
+
+    _syncUserInformation();
+
+    _openTimer();
   }
 
   _initFirebaseMessaging(Stream<RemoteMessage> onMessageStream, Stream<RemoteMessage> onMessageOpenedAppStream) {
@@ -61,9 +66,33 @@ class RoomController {
     });
   }
 
+  _syncUserInformation() {
+    listeningRoom = (app.currRoom['roomRef'] as DocumentReference).snapshots().listen((event) {
+      List usersInfo = event.get('usersInfo');
+
+      final infoList = InfoList.init(usersInfo);
+      
+      app.currRoom['infoList'] = infoList;
+    });
+  }
+  
+  switchNotification(bool turnOn) async {
+    if (turnOn && onMessageSS!.isPaused) {
+      onMessageSS!.resume();
+    } else if (!turnOn && !onMessageSS!.isPaused) {
+      onMessageSS!.pause();
+    }
+    app.currRoom['infoList'] = (app.currRoom['infoList'] as InfoList).updateNotification(app.profile!.uuid, turnOn);
+
+    await (app.currRoom['roomRef'] as DocumentReference).update({'usersInfo': (app.currRoom['infoList'] as InfoList).toJSON()});
+  }
+  
   dispose() {
     onMessageSS!.cancel();
     onMessageOpenedAppSS!.cancel();
+    listeningRoom!.cancel();
+    
+    timer!.cancel();
   }
 
   List<ChatMessageState> messages = []; //main list
@@ -105,7 +134,17 @@ class RoomController {
     _messageStream();
   }
 
+  final _typingId = '${app.profile!.uuid}-TYPING';
+  ChatMessage _messageTyping = ChatMessage()
+    ..type = 'TYPING'
+    ..uuid = app.profile!.uuid
+    ..isTyping = true
+    ..userDocRef = app.profile!.userDoc!.reference
+    ..avatarURL = app.profile!.avatarURL;
+
   void sendMessage(DocumentReference docRef, Profile profile, String message) async {
+    if (indexIncrease > 1) indexIncrease++;
+    
     ChatMessage _message = ChatMessage()
       ..text = message
       ..dateCreated = new DateTime.now()
@@ -114,30 +153,22 @@ class RoomController {
       ..userDocRef = profile.userDoc!.reference
       ..avatarURL = profile.avatarURL;
 
-    (app.currRoom['profiles'] as ProfileList).uuids(ignore: profile.uuid).forEach((item) {
+    (app.currRoom['infoList'] as InfoList).uuids(ignore: profile.uuid).forEach((item) {
         _message.received.add({'${item}': false});
     });
     
     final id = '${profile.uuid}-$indexIncrease';
-
-    if (localMessages['$id']['status'] == 'IS_TYPING') {
-      (localMessages['$id']['func'] as StreamSubscription<void>).cancel();
-    }
-
-    localMessages['$id']['status'] = 'SENDING';
+    _messageTyping.isTyping = false;
+    await docRef.collection('messages').doc(_typingId).set(_messageTyping.toJSON());
 
     final _state = ChatMessageState(id, _message, docRef.collection('messages').doc(id), null);
     handler.add(id, _state);
     handler.reload();
     
-    indexIncrease++;
-
-    _sendNotification(app.currRoom['profiles'] as ProfileList, message, profile);
+    _sendNotification(app.currRoom['infoList'] as InfoList, message, profile);
   }
 
   //status: IS_TYPING, TYPING, SENDING, SEND
-
-  
 
   uploadPicture(DocumentReference docRef, List<XFile> pickedFile, Profile profile) async {
     if (indexIncrease > 1) indexIncrease++;
@@ -163,7 +194,7 @@ class RoomController {
       ..images = filesData
       ..type = 'IMAGE';
 
-    (app.currRoom['profiles'] as ProfileList).uuids(ignore: profile.uuid).forEach((item) {
+    (app.currRoom['infoList'] as InfoList).uuids(ignore: profile.uuid).forEach((item) {
       _message.received.add({'${item}': false});
     });
 
@@ -204,12 +235,12 @@ class RoomController {
     }
   }
 
-  _sendNotification(ProfileList _profiles, String message, Profile sender) async {
+  _sendNotification(InfoList infoList, String message, Profile sender) async {
     List<Profile> profiles = [];
     List<String> tokens = [];
 
-    _profiles.profiles.forEach((_profile) {
-      if (_profile.fcmToken != null && _profile.uuid != sender.uuid) tokens.add(_profile.fcmToken!);
+    infoList.informations.forEach((item) {
+      if (item.fcm != null && item.uuid != sender.uuid && item.notification) tokens.add(item.fcm);
     });
 
     if (tokens.length > 0) {
@@ -226,52 +257,33 @@ class RoomController {
     }
   }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  sendingMessage(DocumentReference docRef, Profile profile, String message) async {
-    ChatMessage _message = ChatMessage()
-      ..text = message
-      ..dateCreated = new DateTime.now()
-      ..uuid = profile.uuid
-      ..isTyping = true
-      ..userDocRef = profile.userDoc!.reference
-      ..avatarURL = profile.avatarURL;
-
-    final id = '${profile.uuid}-$indexIncrease';
-
-    if (!localMessages.containsKey(id)) {
-      localMessages.addAll({
-        '$id': {
-          'status': 'IS_TYPING',
-          'func': docRef.collection('messages').doc(id).set(_message.toJSON()).asStream().listen((event) {
-            localMessages['$id']['status'] = 'TYPING';
-          })
-        }
-      });
-    } else if (_message.text.isEmpty) {
-      if (localMessages['$id']['status'] == 'IS_TYPING') {
-        (localMessages['$id']['func'] as StreamSubscription<void>).cancel();
-      } else {
-        docRef.collection('messages').doc(id).delete();
-      }
-
-      localMessages.remove(id);
+  typingMessing(DocumentReference docRef, Profile profile, String message) async {
+    _messageTyping.dateCreated = new DateTime.now();
+    
+    if (!message.isEmpty) {
+      await docRef.collection('messages').doc(_typingId).set(_messageTyping.toJSON());
+    } else {
+      _messageTyping.isTyping = false;
+      await docRef.collection('messages').doc(_typingId).set(_messageTyping.toJSON());
     }
+  }
+
+  Timer? timer;
+  StreamController<QuerySnapshot>? timerStream;
+  Future<QuerySnapshot<Map<String, dynamic>>>? requestTypingFuture; 
+  
+  _openTimer() {
+    timerStream = StreamController();
+    timer = Timer.periodic(Duration(seconds: 1), _requestTyping);
+  }
+  
+  void _requestTyping(timer) async {
+    if (requestTypingFuture != null) requestTypingFuture!.ignore();
+    
+    requestTypingFuture = FirebaseService.requestTyping(app.currRoom['roomRef'] as DocumentReference);
+
+    requestTypingFuture!.then((value) {
+      timerStream!.add(value);
+    });
   }
 }

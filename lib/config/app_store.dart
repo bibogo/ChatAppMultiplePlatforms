@@ -10,7 +10,7 @@ class App {
   GlobalKey<NavigatorState> navigatorKey = GlobalKey();
   MaterialPageRoute? route;
   Map<String, dynamic> currRoom = {
-    'profiles': null,
+    'infoList': null,
     'roomRef': null
   };
 }

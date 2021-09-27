@@ -18,20 +18,20 @@ class FirebaseService {
     return FirebaseFirestore.instance.collection('users').where('uuid', isNotEqualTo: currentUser).withConverter<Profile>(fromFirestore: (snapshot, _) => Profile.fromDoc(snapshot), toFirestore: (model, _) => model.toJSON()).snapshots(includeMetadataChanges: true);
   }
 
-  static Future<DocumentReference> createChatRoom(List<DocumentReference> refs) async {
-    QuerySnapshot<Map<String, dynamic>> room = await FirebaseFirestore.instance.collection('rooms').where('uuids', isEqualTo: refs).get();
+  static Future<DocumentReference> createChatRoom(List users, List usersInfo) async {
+    QuerySnapshot<Map<String, dynamic>> room = await FirebaseFirestore.instance.collection('rooms').where('uuids', isEqualTo: users).get();
 
     if (room.docs.isNotEmpty) {
       return room.docs.first.reference;
     } else {
       CollectionReference messageRoom = FirebaseFirestore.instance.collection('rooms');
 
-      return messageRoom.add({'uuids': refs});
+      return messageRoom.add({'users': users, 'usersInfo': usersInfo});
     }
   }
 
   static Stream<QuerySnapshot<Map<String, dynamic>>> getRoomChatContainsUser(Profile profile) {
-    return FirebaseFirestore.instance.collection('rooms').where('uuids', arrayContains: profile.userDoc!.reference).snapshots();
+    return FirebaseFirestore.instance.collection('rooms').where('users', arrayContains: profile.userDoc!.reference).snapshots();
   }
 
   static Future<QuerySnapshot<ChatMessage>> getListMessage(DocumentReference? documentReference) async {
@@ -39,7 +39,10 @@ class FirebaseService {
       return Future<QuerySnapshot<ChatMessage>>.value();
     }
 
-    return FirebaseFirestore.instance.doc('${documentReference.path}').collection('messages').orderBy('dateCreated').withConverter<ChatMessage>(fromFirestore: (snapshot, _) => ChatMessage.convertFromDoc(snapshot), toFirestore: (model, _) => model.toJSON()).get();
+    return FirebaseFirestore.instance.doc('${documentReference.path}').collection('messages')
+        .where('type', whereIn: ['NORMAL', 'IMAGE'])
+        .orderBy('dateCreated')
+        .withConverter<ChatMessage>(fromFirestore: (snapshot, _) => ChatMessage.convertFromDoc(snapshot), toFirestore: (model, _) => model.toJSON()).get();
   }
 
   static Stream<QuerySnapshot<Map<String, dynamic>>> getTypingMessage(DocumentReference? documentReference) {
@@ -72,6 +75,15 @@ class FirebaseService {
 
       await FirebaseService.buildProfile(profiles, index, uuids);
     }
+  }
+  
+  static Future<QuerySnapshot<Map<String, dynamic>>> requestTyping(DocumentReference? documentReference) async {
+    var now = DateTime.now();
+    var previous10s = now.subtract(Duration(seconds: 10));
+    
+    return FirebaseFirestore.instance.doc('${documentReference!.path}').collection('messages')
+        .where('dateCreated', isGreaterThan: previous10s)
+        .where('type', isEqualTo: 'TYPING').get(GetOptions(source: Source.server));
   }
 }
 

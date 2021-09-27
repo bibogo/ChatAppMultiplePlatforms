@@ -77,71 +77,57 @@ class _ChatListState extends State<ChatList> {
             itemCount: snapshot.data?.docs.length ?? 0,
             itemBuilder: (BuildContext context, int index) {
               DocumentSnapshot doc = snapshot.data?.docs.elementAt(index) as DocumentSnapshot;
-              return FutureBuilder<List<Profile>>(
-                initialData: List<Profile>.empty(),
-                future: _chatListController!.getProfileFromRef(doc.get('uuids')),
-                builder: (fContext, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return Center(
-                      child: CircularProgressIndicator(),
-                    );
-                  }
-                  
-                  if (!snapshot.hasData) {
-                    return Container();
-                  }
-
-                  ProfileList _profileList = ProfileList(snapshot.data!);
-
-                  return InkWell(
-                    child: Container(
-                      padding: const EdgeInsets.all(8.0),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.only(topLeft: Radius.circular(10), topRight: Radius.circular(10), bottomLeft: Radius.circular(10), bottomRight: Radius.circular(10)),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.grey.withOpacity(0.5),
-                            spreadRadius: 5,
-                            blurRadius: 7,
-                            offset: Offset(0, 3), // changes position of shadow
-                          ),
-                        ],
+              List usersInfo = doc.get('usersInfo');
+              
+              final infoList = InfoList.init(usersInfo);
+              
+              return InkWell(
+                child: Container(
+                  padding: const EdgeInsets.all(8.0),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.only(topLeft: Radius.circular(10), topRight: Radius.circular(10), bottomLeft: Radius.circular(10), bottomRight: Radius.circular(10)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.grey.withOpacity(0.5),
+                        spreadRadius: 5,
+                        blurRadius: 7,
+                        offset: Offset(0, 3), // changes position of shadow
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildAvatarWidget(_profileList),
-                          Expanded(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.start,
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.all(8.0),
-                                  child: Text(
-                                    _profileList.displayName().join(', '),
-                                    style: TextStyle(
-                                      fontSize: 20.0,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                    softWrap: false,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                )
-                              ],
-                            ),
-                          ),
-                        ],
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildAvatarWidget(infoList.avatars()),
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Text(
+                                infoList.names().join(', '),
+                                style: TextStyle(
+                                  fontSize: 20.0,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                softWrap: false,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            )
+                          ],
+                        ),
                       ),
-                    ),
-                    onTap: () {
-                      _chatListController!.navigateToChatRoom(context, doc.reference, _profileList);
-                    },
-                  );
+                    ],
+                  ),
+                ),
+                onTap: () {
+                  _chatListController!.navigateToChatRoom(context, doc.reference, infoList);
                 },
-              );
+              );;
             },
             separatorBuilder: (BuildContext context, int index) => const Divider(),
           );
@@ -150,16 +136,16 @@ class _ChatListState extends State<ChatList> {
     );
   }
 
-  _buildAvatarWidget(ProfileList _profileList) {
-    if (_profileList.length() == 1) {
+  _buildAvatarWidget(List avatars) {
+    if (avatars.length == 1) {
       return Container(
         width: 80.0,
         height: 80.0,
         child: Center(
-          child: _buildAvatarImage(_profileList.elementAt(0).avatarURL),
+          child: _buildAvatarImage(avatars.elementAt(0)),
         ),
       );
-    } else if (_profileList.length() == 2) {
+    } else if (avatars.length == 2) {
       return Container(
         width: 80.0,
         height: 80.0,
@@ -167,13 +153,13 @@ class _ChatListState extends State<ChatList> {
           children: [
             Align(
               alignment: Alignment.topLeft,
-              child: _buildAvatarImage(_profileList.elementAt(0).avatarURL),
+              child: _buildAvatarImage(avatars.elementAt(0)),
             ),
-            Align(alignment: Alignment.bottomRight, child: _buildAvatarImage(_profileList.elementAt(1).avatarURL)),
+            Align(alignment: Alignment.bottomRight, child: _buildAvatarImage(avatars.elementAt(1))),
           ],
         ),
       );
-    } else if (_profileList.length() == 3) {
+    } else if (avatars.length == 3) {
       return Container(
         width: 80.0,
         height: 80.0,
@@ -183,22 +169,22 @@ class _ChatListState extends State<ChatList> {
               children: [
                 Align(
                   alignment: Alignment.topLeft,
-                  child: _buildAvatarImage(_profileList.elementAt(0).avatarURL),
+                  child: _buildAvatarImage(avatars.elementAt(0)),
                 ),
                 Align(
                   alignment: Alignment.topRight,
-                  child: _buildAvatarImage(_profileList.elementAt(1).avatarURL),
+                  child: _buildAvatarImage(avatars.elementAt(1)),
                 )
               ],
             ),
             Align(
               alignment: Alignment.bottomLeft,
-              child: _buildAvatarImage(_profileList.elementAt(2).avatarURL),
+              child: _buildAvatarImage(avatars.elementAt(2)),
             ),
           ],
         ),
       );
-    } else if (_profileList.length() == 4) {
+    } else if (avatars.length == 4) {
       return Container(
         width: 80.0,
         height: 80.0,
@@ -208,11 +194,11 @@ class _ChatListState extends State<ChatList> {
               children: [
                 Align(
                   alignment: Alignment.topLeft,
-                  child: _buildAvatarImage(_profileList.elementAt(0).avatarURL),
+                  child: _buildAvatarImage(avatars.elementAt(0)),
                 ),
                 Align(
                   alignment: Alignment.topRight,
-                  child: _buildAvatarImage(_profileList.elementAt(1).avatarURL),
+                  child: _buildAvatarImage(avatars.elementAt(1)),
                 )
               ],
             ),
@@ -220,11 +206,11 @@ class _ChatListState extends State<ChatList> {
               children: [
                 Align(
                   alignment: Alignment.bottomLeft,
-                  child: _buildAvatarImage(_profileList.elementAt(2).avatarURL),
+                  child: _buildAvatarImage(avatars.elementAt(2)),
                 ),
                 Align(
                   alignment: Alignment.bottomRight,
-                  child: _buildAvatarImage(_profileList.elementAt(3).avatarURL),
+                  child: _buildAvatarImage(avatars.elementAt(3)),
                 )
               ],
             ),
@@ -241,11 +227,11 @@ class _ChatListState extends State<ChatList> {
               children: [
                 Align(
                   alignment: Alignment.topLeft,
-                  child: _buildAvatarImage(_profileList.elementAt(0).avatarURL),
+                  child: _buildAvatarImage(avatars.elementAt(0)),
                 ),
                 Align(
                   alignment: Alignment.topRight,
-                  child: _buildAvatarImage(_profileList.elementAt(1).avatarURL),
+                  child: _buildAvatarImage(avatars.elementAt(1)),
                 )
               ],
             ),
@@ -253,7 +239,7 @@ class _ChatListState extends State<ChatList> {
               children: [
                 Align(
                   alignment: Alignment.bottomLeft,
-                  child: _buildAvatarImage(_profileList.elementAt(3).avatarURL),
+                  child: _buildAvatarImage(avatars.elementAt(2)),
                 ),
                 Align(
                   alignment: Alignment.bottomRight,
@@ -263,7 +249,7 @@ class _ChatListState extends State<ChatList> {
                     decoration: BoxDecoration(borderRadius: BorderRadius.all(Radius.circular(20.0)), color: Colors.green),
                     child: Center(
                       child: Text(
-                        '${_profileList.length}',
+                        '${avatars.length}',
                         style: TextStyle(color: Colors.white, fontSize: 18.0, fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -320,7 +306,7 @@ class _ChatListState extends State<ChatList> {
                 callback: (args) {
                   if (args['type'] == 'Add') {
                     Map<String, Profile> profile = args['profile'] as Map<String, Profile>;
-                    _chatListController!.createChatRoom(context, app.profile, List.from(profile.values));
+                    _chatListController!.createChatRoom(context, app.profile!, List.from(profile.values));
                   }
 
                   Navigator.of(dContext).pop();

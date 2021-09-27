@@ -6,6 +6,7 @@ import 'package:chat_app_multiple_platforms/domain/message.dart';
 import 'package:chat_app_multiple_platforms/domain/profile.dart';
 import 'package:chat_app_multiple_platforms/main.dart';
 import 'package:chat_app_multiple_platforms/service/firebase.dart';
+import 'package:chat_app_multiple_platforms/view/images/load_images_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/cupertino.dart';
@@ -26,12 +27,10 @@ class Room extends StatefulWidget {
 class RoomState extends State<Room> {
   Map<String, Widget?> widgets = {'message': null, 'typing': null, 'composer': null};
   Map<String, dynamic> messWidgets = {};
-  
-  
-  
+
   RoomController? _roomController;
   final TextEditingController _message = TextEditingController(text: '');
-  
+
   final ImagePicker _picker = ImagePicker();
   bool initFrame = false;
 
@@ -52,8 +51,8 @@ class RoomState extends State<Room> {
 
   @override
   Widget build(BuildContext context) {
-    final title = (app.currRoom['profiles'] as ProfileList).displayName().join(', ');
-    
+    final title = (app.currRoom['infoList'] as InfoList).names().join(', ');
+
     return Scaffold(
       appBar: AppBar(
         title: Text(title),
@@ -64,11 +63,27 @@ class RoomState extends State<Room> {
           icon: Icon(Icons.arrow_back),
         ),
         actions: [
-          IconButton(
-              onPressed: () {
-                Navigator.of(this.context).pushReplacement(MaterialPageRoute(builder: (context) => Room()));
-              },
-              icon: Icon(Icons.refresh))
+          StreamBuilder<DocumentSnapshot>(
+            stream: (app.currRoom['roomRef'] as DocumentReference).snapshots(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return Container();
+              }
+              List usersInfo = snapshot.data?.get('usersInfo');
+
+              final infoList = InfoList.init(usersInfo);
+              final info = infoList.find(uuid: app.profile!.uuid);
+              
+              return IconButton(
+                onPressed: () {
+                  _roomController!.switchNotification(!info!.notification);
+                },
+                icon: info!.notification 
+                    ? FaIcon(FontAwesomeIcons.bellSlash, size: 18.0,) 
+                    : FaIcon(FontAwesomeIcons.bell, size: 18.0,) ,
+              );
+            },
+          ),
         ],
       ),
       body: GestureDetector(
@@ -128,26 +143,29 @@ class RoomState extends State<Room> {
                       },
                       itemBuilder: (BuildContext context, int index) {
                         ChatMessageState _state = snapshot.data!.elementAt(index);
-                        
+
                         List a = [];
 
                         if (!messWidgets.containsKey(_state.id)) {
-                          
                           if (_state.chatMessage.type == 'IMAGE') {
-                            messWidgets.putIfAbsent(_state.id, () => MessageImageBuilder(
-                              _state,
-                              _roomController!,
-                              lastItem: index == 0,
-                            ));
+                            messWidgets.putIfAbsent(
+                                _state.id,
+                                () => MessageImageBuilder(
+                                      _state,
+                                      _roomController!,
+                                      lastItem: index == 0,
+                                    ));
                           } else {
-                            messWidgets.putIfAbsent(_state.id, () => MessageBuilder(
-                              _state,
-                              _roomController!,
-                              lastItem: index == 0,
-                            ));
+                            messWidgets.putIfAbsent(
+                                _state.id,
+                                () => MessageBuilder(
+                                      _state,
+                                      _roomController!,
+                                      lastItem: index == 0,
+                                    ));
                           }
                         }
-                        
+
                         return messWidgets['${_state.id}'] as Widget;
                       },
                     ),
@@ -173,7 +191,6 @@ class RoomState extends State<Room> {
             iconSize: 25.0,
             color: Theme.of(context).primaryColor,
             onPressed: () async {
-
               try {
                 List<XFile> pickedFile = await _picker.pickMultiImage(
                       imageQuality: 1,
@@ -191,7 +208,7 @@ class RoomState extends State<Room> {
               textCapitalization: TextCapitalization.sentences,
               controller: _message,
               onChanged: (value) {
-                _roomController!.sendingMessage(app.currRoom['roomRef'] as DocumentReference, app.profile!, value);
+                _roomController!.typingMessing(app.currRoom['roomRef'] as DocumentReference, app.profile!, value);
               },
               decoration: InputDecoration.collapsed(
                 hintText: 'Send a message...',
@@ -222,7 +239,7 @@ class RoomState extends State<Room> {
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: StreamBuilder<QuerySnapshot>(
-          stream: FirebaseService.getTypingMessage(app.currRoom['roomRef'] as DocumentReference),
+          stream: _roomController!.timerStream!.stream,
           builder: (sContext, snapshot) {
             bool isTyping = false;
             List<Widget> widgets = [];
@@ -302,14 +319,14 @@ class MessageBuilderState extends State<MessageBuilder> {
   @override
   void initState() {
     _syncFirebase();
-    
+
     super.initState();
   }
 
   @override
   void didUpdateWidget(covariant MessageBuilder oldWidget) {
     _syncFirebase();
-    
+
     super.didUpdateWidget(oldWidget);
   }
 
@@ -423,7 +440,7 @@ class MessageBuilderState extends State<MessageBuilder> {
       ),
     );
   }
-  
+
   _syncFirebase() {
     ChatMessage _message = widget.messageState.chatMessage;
 
@@ -437,7 +454,7 @@ class MessageBuilderState extends State<MessageBuilder> {
           }
         });
       }
-      
+
       widget.messageState.docRef.update(_message.toJSON());
     }
     if (_message.isTyping) {
@@ -446,17 +463,6 @@ class MessageBuilderState extends State<MessageBuilder> {
     }
   }
 }
-
-class Test extends StatelessWidget {
-  const Test({Key? key}) : super(key: key);
-  
-
-  @override
-  Widget build(BuildContext context) {
-    return Container();
-  }
-}
-
 
 class MessageImageBuilder extends StatefulWidget {
   const MessageImageBuilder(this.messageState, this.roomController, {Key? key, this.lastItem = false}) : super(key: key);
@@ -476,12 +482,11 @@ class _MessageImageBuilderState extends State<MessageImageBuilder> {
   void initState() {
     if (widget.messageState.files!.where((e) => e['file'] != null).isNotEmpty) {
       widget.roomController.uploadPhoto(widget.messageState).then((value) => widget.roomController.updatePhotoData(widget.messageState, value));
-
     }
 
     super.initState();
   }
-  
+
   @override
   void didUpdateWidget(covariant MessageImageBuilder oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -555,14 +560,19 @@ class _MessageImageBuilderState extends State<MessageImageBuilder> {
 
     widget.messageState.files?.forEach((item) {
       Widget _child = item['url'] != '' ? _buildImageLoaded(item['url']) : _buildImageLoading(item['file']);
-      widgets.add(Container(
-        height: 140.0,
-        width: 100.0,
-        decoration: BoxDecoration(border: Border.all(width: 1.0, color: Colors.white), borderRadius: BorderRadius.all(Radius.circular(4.0)), color: Colors.black),
-        child: ClipRRect(
-          borderRadius: BorderRadius.all(Radius.circular(4.0)),
-          child: _child,
+      widgets.add(InkWell(
+        child: Container(
+          height: 140.0,
+          width: 100.0,
+          decoration: BoxDecoration(border: Border.all(width: 1.0, color: Colors.white), borderRadius: BorderRadius.all(Radius.circular(4.0)), color: Colors.black),
+          child: ClipRRect(
+            borderRadius: BorderRadius.all(Radius.circular(4.0)),
+            child: _child,
+          ),
         ),
+        onTap: () {
+          Navigator.push(context, MaterialPageRoute(builder: (context) => LoadImageScreen(controller: widget.roomController, img: item, imgDate: _message.dateCreated,)));
+        },
       ));
     });
 
@@ -641,7 +651,7 @@ class _MessageImageBuilderState extends State<MessageImageBuilder> {
   _buildImageLoaded(imageUrl) {
     return CachedNetworkImage(
       imageUrl: imageUrl,
-      fit: BoxFit.cover,
+      fit: BoxFit.fill,
       placeholder: (context, url) => Stack(
         children: [
           Center(
