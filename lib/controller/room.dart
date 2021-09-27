@@ -168,9 +168,10 @@ class RoomController {
 
     final _state = ChatMessageState(id, _message, docRef.collection('messages').withConverter<ChatMessage>(fromFirestore: (snapshot, _) => ChatMessage.convertFromDoc(snapshot), toFirestore: (model, _) => model.toJSON()).doc(id), null);
     handler.add(id, _state);
+
+    await _sendNotification(app.currRoom['infoList'] as InfoList, message, profile);
+
     handler.reload();
-    
-    _sendNotification(app.currRoom['infoList'] as InfoList, message, profile);
   }
 
   //status: IS_TYPING, TYPING, SENDING, SEND
@@ -204,7 +205,7 @@ class RoomController {
     });
 
     final id = '${profile.uuid}-$indexIncrease';
-    print(id);
+
     handler.add(id, ChatMessageState(id, _message, docRef.collection('messages').doc(id), null, files: files));
     handler.reload();
   }
@@ -215,7 +216,7 @@ class RoomController {
 
     _message.images = files;
 
-    _state.docRef.set(_message.toJSON()).then((value) {
+    _state.docRef.set(_message.toJSON()).then((value) async {
       _message.images!.forEach((_image) {
         handler.imgList.add({
           'url': _image['url'],
@@ -224,7 +225,7 @@ class RoomController {
         });
       });
 
-      _sendNotification(app.currRoom['infoList'] as InfoList, 'Upload ${_message.images!.length} photos.', app.profile!);
+      await _sendNotification(app.currRoom['infoList'] as InfoList, 'Upload ${_message.images!.length} photos.', app.profile!);
     });
   }
   
