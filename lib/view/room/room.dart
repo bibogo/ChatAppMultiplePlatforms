@@ -441,7 +441,7 @@ class MessageBuilderState extends State<MessageBuilder> {
     );
   }
 
-  _syncFirebase() {
+  _syncFirebase() async {
     ChatMessage _message = widget.messageState.chatMessage;
 
     if (_message.uuid != app.profile?.uuid && !_message.received.contains({'${app.profile?.uuid}': false})) {
@@ -454,12 +454,8 @@ class MessageBuilderState extends State<MessageBuilder> {
           }
         });
       }
-
-      widget.messageState.docRef.update(_message.toJSON());
-    }
-    if (_message.isTyping) {
-      _message.isTyping = false;
-      widget.messageState.docRef.set(_message.toJSON());
+    } else if (_message.uuid == app.profile?.uuid) {
+      await widget.messageState.docRef.set(_message);
     }
   }
 }
@@ -480,7 +476,8 @@ class _MessageImageBuilderState extends State<MessageImageBuilder> {
 
   @override
   void initState() {
-    if (widget.messageState.files!.where((e) => e['file'] != null).isNotEmpty) {
+    if (widget.messageState.files!.where((e) => e['file'] != null).isNotEmpty 
+        && widget.messageState.chatMessage.uuid == app.profile!.uuid) {
       widget.roomController.uploadPhoto(widget.messageState).then((value) => widget.roomController.updatePhotoData(widget.messageState, value));
     }
 
@@ -489,6 +486,11 @@ class _MessageImageBuilderState extends State<MessageImageBuilder> {
 
   @override
   void didUpdateWidget(covariant MessageImageBuilder oldWidget) {
+    if (widget.messageState.files!.where((e) => e['file'] != null).isNotEmpty
+        && widget.messageState.chatMessage.uuid == app.profile!.uuid) {
+      widget.roomController.uploadPhoto(widget.messageState).then((value) => widget.roomController.updatePhotoData(widget.messageState, value));
+    }
+    
     super.didUpdateWidget(oldWidget);
   }
 

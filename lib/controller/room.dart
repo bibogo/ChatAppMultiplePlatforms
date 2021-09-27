@@ -109,6 +109,11 @@ class RoomController {
         if (_message.type == 'IMAGE') {
           _message.images?.forEach((item) {
             filesData.add({'name': item['name'], 'url': item['url']});
+            handler.imgList.add({
+              'url': item['url'],
+              'name': item['name'],
+              'date': DateUtils.dateOnly(_message.dateCreated)
+            });
           });
         }
 
@@ -149,7 +154,7 @@ class RoomController {
       ..text = message
       ..dateCreated = new DateTime.now()
       ..uuid = profile.uuid
-      ..isTyping = true
+      ..isTyping = false
       ..userDocRef = profile.userDoc!.reference
       ..avatarURL = profile.avatarURL;
 
@@ -161,7 +166,7 @@ class RoomController {
     _messageTyping.isTyping = false;
     await docRef.collection('messages').doc(_typingId).set(_messageTyping.toJSON());
 
-    final _state = ChatMessageState(id, _message, docRef.collection('messages').doc(id), null);
+    final _state = ChatMessageState(id, _message, docRef.collection('messages').withConverter<ChatMessage>(fromFirestore: (snapshot, _) => ChatMessage.convertFromDoc(snapshot), toFirestore: (model, _) => model.toJSON()).doc(id), null);
     handler.add(id, _state);
     handler.reload();
     
@@ -199,7 +204,7 @@ class RoomController {
     });
 
     final id = '${profile.uuid}-$indexIncrease';
-    
+    print(id);
     handler.add(id, ChatMessageState(id, _message, docRef.collection('messages').doc(id), null, files: files));
     handler.reload();
   }
@@ -210,7 +215,15 @@ class RoomController {
 
     _message.images = files;
 
-    _state.docRef.set(_message.toJSON());
+    _state.docRef.set(_message.toJSON()).then((value) {
+      _message.images!.forEach((_image) {
+        handler.imgList.add({
+          'url': _image['url'],
+          'name': _image['name'],
+          'date': DateUtils.dateOnly(_message.dateCreated)
+        });
+      });
+    });
   }
   
   Future<List<Map<String, dynamic>>> uploadPhoto(ChatMessageState _state) async {
@@ -218,6 +231,7 @@ class RoomController {
     int index = 0;
     
     await _uploadPhotoSync(index, _state.files!, urls, _state.docRef.id);
+    
     return urls;
   }
 
