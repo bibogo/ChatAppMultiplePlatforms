@@ -170,8 +170,10 @@ class RoomController {
     handler.add(id, _state);
 
     await _sendNotification(app.currRoom['infoList'] as InfoList, message, profile);
-
+    
     handler.reload();
+
+    
   }
 
   //status: IS_TYPING, TYPING, SENDING, SEND
@@ -270,7 +272,8 @@ class RoomController {
         "notification": {"title": sender.displayName, "body": message}
       });
 
-      await http.post(Uri.parse('https://fcm.googleapis.com/fcm/send'), headers: headers, body: body);
+      var res = await http.post(Uri.parse('https://fcm.googleapis.com/fcm/send'), headers: headers, body: body);
+      print(res.reasonPhrase);
     }
   }
 
@@ -278,6 +281,7 @@ class RoomController {
     _messageTyping.dateCreated = new DateTime.now();
     
     if (!message.isEmpty) {
+      _messageTyping.isTyping = true;
       await docRef.collection('messages').doc(_typingId).set(_messageTyping.toJSON());
     } else {
       _messageTyping.isTyping = false;
