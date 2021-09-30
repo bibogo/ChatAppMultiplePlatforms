@@ -261,7 +261,7 @@ class RoomController {
     infoList.informations.forEach((item) {
       if (item.fcm != null && item.uuid != sender.uuid && item.notification) tokens.add(item.fcm);
     });
-
+    print(tokens);
     if (tokens.length > 0) {
       String key = 'AAAAFGC0U5c:APA91bGgJDRh2KHXC8QfMYcSK5I0kKRDShFqzcXRHuR32TktbRvBlksKZriofb46aF9hh-tcsURl-BrTT4izgWHMxzjSLLY6GJH0FWlVpwebyTIrZE_W692BgO3dqaycainv3gzIUeUB';
       Map<String, String> headers = {'Authorization': 'key=$key', 'Content-Type': 'application/json'};
@@ -273,7 +273,6 @@ class RoomController {
       });
 
       var res = await http.post(Uri.parse('https://fcm.googleapis.com/fcm/send'), headers: headers, body: body);
-      print(res.reasonPhrase);
     }
   }
 

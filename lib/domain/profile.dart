@@ -100,6 +100,19 @@ class InfoList {
     
     return InfoList(informations);
   }
+
+  InfoList updateFCM(String uuid, String fcm) {
+    final index = informations.indexWhere((item) => item.uuid == uuid);
+
+    if (index >= 0) {
+      var item = informations.elementAt(index);
+      item.fcm = fcm;
+
+      informations[index] = item;
+    }
+
+    return InfoList(informations);
+  }
   
   List toJSON() {
     List results = [];

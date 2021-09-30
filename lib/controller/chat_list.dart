@@ -49,9 +49,26 @@ class ChatListController {
   }
 
   void navigateToChatRoom(BuildContext context, DocumentReference _roomRef, InfoList _infoList) async {
+    List userDocs = (await _roomRef.get(GetOptions(source: Source.server))).get('users');
+
+    await updateFCMToken(_infoList, 0, userDocs, _roomRef) ;
+    await _roomRef.update({'usersInfo': _infoList.toJSON()});
     app.currRoom['infoList'] = _infoList;
     app.currRoom['roomRef'] = _roomRef;
     
     Navigator.pushNamed(context, '/room');
+  }
+  
+  Future<void> updateFCMToken(InfoList _infoList, int index, List userDocs, DocumentReference _roomRef) async {
+    if (index <= userDocs.length - 1) {
+      Map<String, dynamic> docRef = (await userDocs[index].get(GetOptions(source: Source.server))).data() as Map<String, dynamic>;
+      print('${docRef['uuid']} - ${docRef['fcmToken']}');
+      _infoList.updateFCM(docRef['uuid'], docRef['fcmToken']);
+      
+      
+      index++;
+
+      await updateFCMToken(_infoList, index, userDocs, _roomRef);
+    }
   }
 }
